@@ -32,6 +32,7 @@
 ![Celery](https://img.shields.io/badge/celery-5.x-blue)
 ![Docker](https://img.shields.io/badge/docker-compose-2496ED?logo=docker)
 
+
 ## 🧠 核心能力 Core competencies
 
 - **对话式购物助手**：自然语言交互，用户说"想买500元以内的蓝牙耳机，延迟要低"，AI 自动理解意图、提取参数、搜索商品、对比推荐。
@@ -39,6 +40,7 @@
 - **AI 辅助运营**：通过 Celery 异步任务支持商品描述生成、动态定价建议、营销文案生成和个性化推荐刷新。
 - **实时可观测性**：SSE 展示 Agent 思考/工具调用过程，WebSocket 推送订单状态，运营仪表盘展示意图、工具、延迟和事件流。
 - **生产级工程化**：service 层独立、Celery 异步任务、PostgreSQL + Alembic 迁移、Pytest 测试、Docker 部署。
+
 
 ## 👤 作者 Author
 
@@ -53,6 +55,7 @@ AI Agent Engineer | LLM Application Engineer | AI Infrastructure Engineer | Full
 
 - Email: leonleiwang@outlook.com
 - GitHub: https://github.com/leonleiwang
+
 
 ## 🏗️ 技术架构 Technical Architecture
 
@@ -94,6 +97,7 @@ flowchart LR
 - **实时通信**：FastAPI SSE（对话流）+ WebSocket（订单状态推送）
 - **数据库**：PostgreSQL + Alembic 迁移
 - **部署**：Vercel（前端）+ Railway / AWS（后端）
+
 
 ## 📂 项目结构 Project Structure
 
@@ -194,6 +198,7 @@ ShopMind-AI/
 └── README.md
 ```
 
+
 ## 🚀 快速开始 Quick Start
 
 ### 1. 环境准备 Environmental preparation
@@ -235,6 +240,7 @@ VECTOR_STORE_TYPE=chroma
 
 当前主搜索链路以 PostgreSQL 关键词/价格/分类过滤为主，并通过 `backend/app/services/chatbot/vector_store_manager.py` 接入语义排序；未连接外部 Milvus/Chroma 时会使用本地可解释的语义评分降级。
 
+
 ## 🧪 效果展示 Pages demonstration
 
 | 功能 | 截图 |
@@ -242,8 +248,9 @@ VECTOR_STORE_TYPE=chroma
 | 对话式购物助手 | ![加购物车和下单](docs/screenshots/Conversational_shopping_assistant.png) |
 | 商品 AI 搜索与对比 | ![智能搜索推荐商品和商品对比](docs/screenshots/Conversational_shopping_assistant.png) |
 | Agent 可观测性仪表盘 | ![Agent调用仪表盘](docs/screenshots/Agent_dashboard.png) |
-| AI 商品描述 / 定价 / 营销文案 | ![自动化运营]<img src="docs/screenshots/Automated_operations-1.png" width="45%" /> <img src="docs/screenshots/Automated_operations-2.png" width="45%" /> |
+| AI自动化运营-商品描述/定价/营销文案 |<img src="docs/screenshots/Automated_operations-1.png" width="45%" /> <img src="docs/screenshots/Automated_operations-2.png" width="45%" /> |
 | WebSocket 实时订单推送 | ![实时订单推送](docs/screenshots/Real-time_WebSockert_order.png) |
+
 
 ## ✅ 当前完成度
 
@@ -262,6 +269,7 @@ VECTOR_STORE_TYPE=chroma
 | WebSocket 订单状态推送 | 已实现 |
 | 后台仪表盘 / Agent 可观测性 | 已实现 `/dashboard` 运营仪表盘 |
 | Pytest 自动化测试 | 已补充核心 Agent / MCP / 向量排序测试 |
+
 
 ## 🎯 项目亮点
 
@@ -296,6 +304,7 @@ VECTOR_STORE_TYPE=chroma
 
 参考 Norce Commerce Agent SDK、Agorio SDK、VTEX AI Workspace 等 2026 年 AI 电商前沿作品。
 
+
 ## 🔭 已知权衡与未来规划
 
 | 模块       | 当前实现            | 后续规划                 |
@@ -306,6 +315,7 @@ VECTOR_STORE_TYPE=chroma
 | 移动端适配    | PWA 基础支持        | 完整移动端优化              |
 | Agent 编排 | 代码配置            | 低代码拖拽画布              |
 | 性能优化     | SSR / SSG       | ISR + Edge Functions |
+
 
 ## 📦 部署架构 Deployment Architecture
 
@@ -339,6 +349,7 @@ VECTOR_STORE_TYPE=chroma
 
 后端会优先读取 `DATABASE_URL`；没有该变量时，回退到 `POSTGRES_USER`、`POSTGRES_PASSWORD`、`POSTGRES_HOST`、`POSTGRES_PORT`、`POSTGRES_DATABASE`。
 
+
 ### Vector Store：Milvus
 
 生产建议使用 Zilliz Cloud / Milvus Cloud，并配置：
@@ -350,6 +361,7 @@ VECTOR_STORE_TYPE=chroma
 轻量演示可临时使用：
 
 - `VECTOR_STORE_TYPE=chroma`
+
 
 ## 🛠 Engineering Practices
 
