@@ -44,14 +44,13 @@
 
 ## 👤 作者 Author
 
-**王磊（Leon Wang）**
-"AI Agent & LLM Application Engineer focused on Agentic and multi-agent Systems, RAG, modern AI Infrastructure, Machine Learning, AI-native products with LLMs and Fullstack AI Products."
-
-求职 - AI Agent 应用开发 | LLM 大模型开发 | AI Infra | 全栈工程师
-
-AI Agent Engineer | LLM Application Engineer | AI Infrastructure Engineer | Fullstack Developer
-
-📍 Based in Nanjing / Shanghai / Hangzhou / Suzhou, China
+**王磊（Leon Wang）**<br>
+"AI Agent & LLM Application Engineer focused on Agentic and multi-agent Systems, RAG, modern AI Infrastructure, Machine Learning, AI-native products with LLMs and Fullstack AI Products."<br>
+<br>
+求职 - AI Agent 应用开发 | LLM 大模型开发 | AI Infra | 全栈工程师<br>
+AI Agent Engineer | LLM Application Engineer | AI Infrastructure Engineer | Fullstack Developer<br>
+<br>
+📍 Based in Nanjing / Shanghai / Hangzhou / Suzhou, China<br>
 📍 Open to opportunities across Sydney / Melbourne / Brisbane / Adelaide, Australia & Auckland, New Zealand (Work visa holder)
 
 - Email: leonleiwang@outlook.com
