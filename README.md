@@ -52,9 +52,9 @@ AI Agent Engineer | LLM Application Engineer | AI Infrastructure Engineer | Full
 <br>
 📍 Based in Nanjing / Shanghai / Hangzhou / Suzhou, China<br>
 📍 Open to opportunities across Sydney / Melbourne / Brisbane / Adelaide, Australia & Auckland, New Zealand (Work visa holder)
-
-- Email: leonleiwang@outlook.com
-- GitHub: https://github.com/leonleiwang
+<br>
+Email: leonleiwang@outlook.com<br>
+GitHub: https://github.com/leonleiwang
 
 
 ## 🏗️ 技术架构 Technical Architecture
