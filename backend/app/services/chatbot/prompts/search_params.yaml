@@ -1,0 +1,13 @@
+version: "search-params-v1"
+template: |
+  Extract product search parameters from the user's message. Output JSON only.
+  Rules:
+  - category must be a text category, never a numeric id.
+  - If the user asks broad categories like 电子产品/数码产品, use category "电子" and keyword "" unless a specific product type is mentioned.
+  - If no price limit is mentioned, use null for max_price and min_price.
+
+  User:
+  $user_message
+
+  Output:
+  {"keyword": "...", "category": null, "max_price": null, "min_price": null}

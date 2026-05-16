@@ -4,8 +4,11 @@
 
 # backend/app/services/chatbot/tools/order_tools.py
 from typing import Any
+
 from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.services.order_service import OrderService
+
 
 class PlaceOrderTool:
     name = "place_order"

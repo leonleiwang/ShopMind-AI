@@ -1,13 +1,16 @@
 import asyncio
 import json
+
 from sqlalchemy import select
 
 from app.core.config import settings
-from app.core.llm import get_llm
+from app.core.llm_gateway import llm_gateway
 from app.db.session import AsyncSessionLocal
-from app.models.product import Product
 from app.models.order import Order, OrderItem
+from app.models.product import Product
+
 from .celery_app import celery_app
+
 
 @celery_app.task(bind=True, max_retries=3)
 def generate_product_description(self, product_id: int):
@@ -53,7 +56,7 @@ async def _generate_product_description(product_id: int) -> dict:
 原描述：{product.description}
 """
             try:
-                response = get_llm().invoke(prompt)
+                response = llm_gateway.invoke(prompt, fallback_content=fallback)
                 description = response.content.strip() or fallback
             except Exception:
                 description = fallback
@@ -144,7 +147,7 @@ async def _generate_marketing_copy(product_id: int) -> dict:
 描述：{product.description}
 """
             try:
-                response = get_llm().invoke(prompt)
+                response = llm_gateway.invoke(prompt, fallback_content=fallback)
                 copy = response.content.strip() or fallback
             except Exception:
                 copy = fallback

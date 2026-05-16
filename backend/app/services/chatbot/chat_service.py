@@ -3,110 +3,171 @@
 """
 
 # backend/app/services/chatbot/chat_service.py
-import json
 import asyncio
+import json
 import re
-from typing import Any, AsyncGenerator
-from app.core.llm import get_llm
-from app.services.chatbot.agents.intent_router import IntentRouterAgent
-from app.services.chatbot.agents.planning import PlanningAgent
-from app.services.chatbot.agents.recommendation import RecommendationAgent
-from app.services.chatbot.agents.product_search import ProductSearchAgent
-from app.services.chatbot.agents.comparison import ComparisonAgent
-from app.services.chatbot.agents.cart_order import CartOrderAgent
-from app.services.chatbot.tools.registry import ToolRegistry
-from app.services.chatbot.tools.caller import ToolCaller
-from app.services.chatbot.tools.product_search import ProductSearchTool
-from app.services.chatbot.tools.product_compare import ProductCompareTool
-from app.services.chatbot.tools.cart_tools import AddToCartTool, ClearCartTool, ViewCartTool
-from app.services.chatbot.tools.order_tools import PlaceOrderTool, CheckOrderTool
-from app.services.observability import AgentObservability
+from collections.abc import AsyncGenerator
+from typing import Any
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.llm_gateway import llm_gateway
+from app.services.chatbot.agents.cart_order import CartOrderAgent
+from app.services.chatbot.agents.comparison import ComparisonAgent
+from app.services.chatbot.agents.conversation import (
+    ClarificationAgent,
+    conversation_store,
+)
+from app.services.chatbot.agents.intent_router import IntentRouterAgent
+from app.services.chatbot.agents.planning import PlanningAgent
+from app.services.chatbot.agents.product_search import ProductSearchAgent
+from app.services.chatbot.agents.recommendation import RecommendationAgent
+from app.services.chatbot.prompts import prompt_manager
+from app.services.chatbot.tools.caller import ToolCaller
+from app.services.chatbot.tools.cart_tools import AddToCartTool, ClearCartTool, ViewCartTool
+from app.services.chatbot.tools.order_tools import CheckOrderTool, PlaceOrderTool
+from app.services.chatbot.tools.product_compare import ProductCompareTool
+from app.services.chatbot.tools.product_search import ProductSearchTool
+from app.services.chatbot.tools.registry import ToolRegistry
+from app.services.observability import AgentObservability
+
+
 class ChatService:
-    def __init__(self, db: AsyncSession, user_id: int):
+    def __init__(self, db: AsyncSession, user_id: int, conversation_id: str | None = None):
         self.db = db
         self.user_id = user_id
-        self.llm = get_llm()
-        self.router = IntentRouterAgent()
-        self.planning = PlanningAgent()
-        self.product_search = ProductSearchAgent()
-        self.recommendation = RecommendationAgent()
-        self.comparison = ComparisonAgent()
-        self.cart_order = CartOrderAgent()
+        self.state = conversation_store.get(user_id, conversation_id)
+        self.llm = llm_gateway
+        self.tool_registry = ToolRegistry()
+        self.tool_caller = ToolCaller(self.tool_registry)
         self._register_tools()
+        self.router = IntentRouterAgent(tool_schemas=self.tool_caller.get_tool_schemas())
+        self.clarification = ClarificationAgent()
+        self.planning = PlanningAgent()
+        self.product_search = ProductSearchAgent(self.tool_caller)
+        self.recommendation = RecommendationAgent(self.tool_caller)
+        self.comparison = ComparisonAgent(self.tool_caller)
+        self.cart_order = CartOrderAgent(self.tool_caller)
 
     def _register_tools(self):
-        ToolRegistry.register(ProductSearchTool(self.db))
-        ToolRegistry.register(ProductCompareTool(self.db))
-        ToolRegistry.register(AddToCartTool(self.db, self.user_id))
-        ToolRegistry.register(ViewCartTool(self.db, self.user_id))
-        ToolRegistry.register(ClearCartTool(self.db, self.user_id))
-        ToolRegistry.register(PlaceOrderTool(self.db, self.user_id))
-        ToolRegistry.register(CheckOrderTool(self.db))
+        self.tool_registry.register(ProductSearchTool(self.db))
+        self.tool_registry.register(ProductCompareTool(self.db))
+        self.tool_registry.register(AddToCartTool(self.db, self.user_id))
+        self.tool_registry.register(ViewCartTool(self.db, self.user_id))
+        self.tool_registry.register(ClearCartTool(self.db, self.user_id))
+        self.tool_registry.register(PlaceOrderTool(self.db, self.user_id))
+        self.tool_registry.register(CheckOrderTool(self.db))
 
     async def process_message(self, user_message: str) -> AsyncGenerator[dict, None]:
-        # 1. 识别意图
-        intent = await self.router.route(user_message)
+        self._remember("user", user_message)
+
+        # 1. [反思1b-有依据路由] 识别意图并输出置信度、依据、缺失槽位
+        route = await self.router.route_decision(user_message)
+        intent = route.intent
+        self.state.last_intent = intent
         AgentObservability.record_intent(intent, user_message)
-        yield self._event("intent", {"intent": intent})
+        yield self._event(
+            "intent",
+            {
+                "intent": intent,
+                "confidence": route.confidence,
+                "evidence": route.evidence,
+                "required_slots": route.required_slots,
+                "conversation_id": self.state.conversation_id,
+            },
+        )
         await asyncio.sleep(0.3)
 
-        # 2. 针对不同意图处理
-        if intent == "plan":
-            # 复杂任务：生成计划并逐步执行
-            async for event in self._handle_plan(user_message):
-                yield event
-        elif intent == "search":
-            async for event in self._handle_search(user_message):
-                yield event
-        elif intent == "compare":
-            final = await self.comparison.compare(user_message)
-            yield self._event("final", {"content": final})
-        elif intent == "recommend":
-            params = await self._extract_search_params(user_message)
-            final = await self.recommendation.recommend(params)
-            yield self._event("final", {"content": final["text"]})
-        elif intent in ["cart", "order"]:
-            final = await self.cart_order.handle(user_message, intent)
-            yield self._event("final", {"content": final})
-        else:
-            yield self._event("final", {"content": "我可以帮你搜索、比较商品、管理购物车和下单。试着说“推荐一款蓝牙耳机并下单”吧！"})
+        params = await self._extract_search_params(user_message) if intent in {"search", "recommend"} else {}
+        clarification = self.clarification.inspect(user_message, intent, params)
+        if intent == "clarify" or clarification["needs_clarification"] or route.required_slots:
+            self.state.pending_slots = list(dict.fromkeys(route.required_slots + clarification["required_slots"]))
+            content = self._format_clarification(clarification)
+            self._remember("assistant", content)
+            yield self._event(
+                "final",
+                {
+                    "content": content,
+                    "conversation_id": self.state.conversation_id,
+                    "required_slots": self.state.pending_slots,
+                },
+            )
+            return
+
+        try:
+            # 2. 针对不同意图处理
+            if intent == "plan":
+                # 复杂任务：生成计划并逐步执行
+                async for event in self._handle_plan(user_message):
+                    yield event
+            elif intent == "search":
+                async for event in self._handle_search(user_message, params):
+                    yield event
+            elif intent == "compare":
+                final = await self.comparison.compare(user_message, self.state.history)
+                self._remember("assistant", final)
+                yield self._event("final", {"content": final, "conversation_id": self.state.conversation_id})
+            elif intent == "recommend":
+                final = await self.recommendation.recommend(params)
+                self.state.last_products = final["products"]
+                self._remember("assistant", final["text"])
+                yield self._event("final", {"content": final["text"], "conversation_id": self.state.conversation_id})
+            elif intent in ["cart", "order"]:
+                final = await self.cart_order.handle(user_message, intent)
+                self._remember("assistant", final)
+                yield self._event("final", {"content": final, "conversation_id": self.state.conversation_id})
+            else:
+                content = "我可以帮你搜索、比较商品、管理购物车和下单。试着说“推荐一款蓝牙耳机并下单”吧！"
+                self._remember("assistant", content)
+                yield self._event("final", {"content": content, "conversation_id": self.state.conversation_id})
+        except Exception:
+            content = self._human_handoff_text()
+            self._remember("assistant", content)
+            yield self._event("final", {"content": content, "conversation_id": self.state.conversation_id, "degraded": True})
 
     @staticmethod
     def _event(event: str, payload: dict) -> dict:
         AgentObservability.record_event(event)
         return {"event": event, "data": json.dumps(payload, ensure_ascii=False)}
 
-    async def _handle_search(self, user_message: str):
+    async def _handle_search(self, user_message: str, params: dict | None = None):
         # 1. 提取搜索参数
-        params = await self._extract_search_params(user_message)
+        params = params or await self._extract_search_params(user_message)
 
         # 2. 执行搜索
         search_result = await self.product_search.search(params)
         result = search_result["products"]
+        self.state.last_products = result
+        conversation_store.save(self.state)
         yield self._event("thought", {"content": "正在搜索商品..."})
         yield self._event("action", {"tool": "search_products", "input": params})
         yield self._event("observation", {"content": f"找到 {len(result)} 件商品"})
 
         # 3. 生成最终回答
-        yield self._event("final", {"content": search_result["text"]})
+        self._remember("assistant", search_result["text"])
+        yield self._event("final", {"content": search_result["text"], "conversation_id": self.state.conversation_id})
 
     async def _extract_search_params(self, user_message: str) -> dict:
         fallback = self._extract_search_params_by_rules(user_message)
-        extract_prompt = f"""Extract product search parameters from the user's message. Output JSON only.
-Rules:
-- category must be a text category, never a numeric id.
-- If the user asks broad categories like 电子产品/数码产品, use category "电子" and keyword "" unless a specific product type is mentioned.
-- If no price limit is mentioned, use null for max_price and min_price.
-User: {user_message}
-Output: {{"keyword": "...", "category": null, "max_price": null, "min_price": null}}"""
+        extract_prompt = prompt_manager.render("search_params", user_message=user_message)
         try:
-            resp = await self.llm.ainvoke(extract_prompt)
+            resp = await self.llm.ainvoke(extract_prompt, fallback_content="{}")
             params = self._parse_json_object(resp.content)
         except Exception:
             params = {}
         return self._normalize_search_params(params, fallback)
+
+    @staticmethod
+    def _format_clarification(clarification: dict) -> str:
+        question = clarification.get("question") or "我需要再确认一个关键信息，才能继续处理。"
+        options = clarification.get("options") or []
+        if not options:
+            return question
+        return question + "\n可选方向：" + " / ".join(options)
+
+    @staticmethod
+    def _human_handoff_text() -> str:
+        return "当前智能客服链路繁忙或工具调用失败，我先为你保留上下文。你可以稍后重试，或转人工继续处理。"
 
     @staticmethod
     def _parse_json_object(content: str) -> dict:
@@ -217,19 +278,19 @@ Output: {{"keyword": "...", "category": null, "max_price": null, "min_price": nu
             try:
                 if intent == "search":
                     resolved_params = self._normalize_search_params(resolved_params, self._extract_search_params_by_rules(step_desc))
-                    result = await ToolCaller.invoke("search_products", **resolved_params)
+                    result = await self.tool_caller.invoke("search_products", **resolved_params)
                     context["last_products"] = result
                 elif intent == "compare":
-                    result = await ToolCaller.invoke("compare_products", product_ids=resolved_params.get("product_ids", []))
+                    result = await self.tool_caller.invoke("compare_products", product_ids=resolved_params.get("product_ids", []))
                 elif intent == "clear_cart":
-                    result = await ToolCaller.invoke("clear_cart")
+                    result = await self.tool_caller.invoke("clear_cart")
                 elif intent == "cart":
                     # 确保有 product_id
                     if "product_id" not in resolved_params:
                         raise ValueError("缺少 product_id，无法加入购物车")
-                    result = await ToolCaller.invoke("add_to_cart", **resolved_params)
+                    result = await self.tool_caller.invoke("add_to_cart", **resolved_params)
                 elif intent == "order":
-                    result = await ToolCaller.invoke("place_order")
+                    result = await self.tool_caller.invoke("place_order")
                 elif intent == "recommend":
                     resolved_params = self._normalize_search_params(resolved_params, self._extract_search_params_by_rules(step_desc))
                     rec_result = await self.recommendation.recommend(resolved_params)
@@ -243,7 +304,7 @@ Output: {{"keyword": "...", "category": null, "max_price": null, "min_price": nu
                 #     result = rec_result  # 用于显示
                 else:
                     result = f"不支持的步骤：{intent}"
-            except ValueError as e:
+            except Exception as e:
                 result = str(e)
 
             # 输出本步结果
@@ -260,7 +321,8 @@ Output: {{"keyword": "...", "category": null, "max_price": null, "min_price": nu
         else:
             final_parts.append("计划执行完毕。")
         final_text = "\n".join(final_parts)
-        yield self._event("final", {"content": final_text})
+        self._remember("assistant", final_text)
+        yield self._event("final", {"content": final_text, "conversation_id": self.state.conversation_id})
 
     @staticmethod
     def _format_step_result(intent: str, result: Any, params: dict) -> str:
@@ -284,5 +346,9 @@ Output: {{"keyword": "...", "category": null, "max_price": null, "min_price": nu
                 return "未找到这些商品。"
             return "商品对比：\n" + "\n".join([f"- 商品{p['id']}：{p['name']}，¥{p['price']}" for p in result])
         return json.dumps(result, ensure_ascii=False)
+
+    def _remember(self, role: str, content: str) -> None:
+        self.state.add_message(role, content)
+        conversation_store.save(self.state)
 
     

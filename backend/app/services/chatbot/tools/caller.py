@@ -1,15 +1,20 @@
 # app/services/chatbot/tools/caller.py
-from typing import Any
 from time import perf_counter
+from typing import Any
+
 from app.services.observability import AgentObservability
+
 from .registry import ToolRegistry
 
+
 class ToolCaller:
-    """工具调用抽象，隔离 LLM 与具体工具实现"""
-    
-    @staticmethod
-    async def invoke(tool_name: str, **kwargs) -> Any:
-        tool = ToolRegistry.get(tool_name)
+    """[反思1c/2a-并发治理] 请求级工具调用器，隔离 LLM 与具体工具实现。"""
+
+    def __init__(self, registry: ToolRegistry):
+        self.registry = registry
+
+    async def invoke(self, tool_name: str, **kwargs) -> Any:
+        tool = self.registry.get(tool_name)
         if not tool:
             raise ValueError(f"Tool {tool_name} not found in registry")
         start = perf_counter()
@@ -20,9 +25,8 @@ class ToolCaller:
         except Exception:
             AgentObservability.record_tool(tool_name, (perf_counter() - start) * 1000, ok=False)
             raise
-    
-    @staticmethod
-    def get_tool_schemas() -> list[dict]:
+
+    def get_tool_schemas(self) -> list[dict]:
         """返回 JSON Schema 格式的工具列表，供 LLM function calling"""
         return [
             {
@@ -30,5 +34,5 @@ class ToolCaller:
                 "description": t.description,
                 "parameters": t.parameters
             }
-            for t in ToolRegistry.list_all()
+            for t in self.registry.list_all()
         ]

@@ -8,8 +8,11 @@ class ProductSearchAgent:
     reusable unit for tests, MCP adapters, or future graph-based orchestration.
     """
 
+    def __init__(self, tool_caller: ToolCaller):
+        self.tool_caller = tool_caller
+
     async def search(self, params: dict) -> dict:
-        products = await ToolCaller.invoke("search_products", **params)
+        products = await self.tool_caller.invoke("search_products", **params)
         if not products:
             return {"products": [], "text": "没有找到符合条件的商品，试试换个关键词吧～"}
         product_lines = "\n".join(

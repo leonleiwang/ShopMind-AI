@@ -3,15 +3,16 @@
 """
 
 # backend/app/api/v1/products.py
-from typing import List, Optional
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.api.deps import get_current_user
 from app.core.config import settings
 from app.db.session import get_db
-from app.schemas.product import ProductCreate, ProductUpdate, ProductResponse
-from app.services.product_service import ProductService
-from app.api.deps import get_current_user
 from app.models.user import User
+from app.schemas.product import ProductCreate, ProductResponse, ProductUpdate
+from app.services.product_service import ProductService
 from app.tasks.ai_tasks import (
     _batch_update_recommendations,
     _generate_marketing_copy,
@@ -46,12 +47,12 @@ async def create_product(
     product = await ProductService.create_product(db, **product_in.model_dump())
     return product
 
-@router.get("/", response_model=List[ProductResponse])
+@router.get("/", response_model=list[ProductResponse])
 async def list_products(
     skip: int = Query(0, ge=0),
     limit: int = Query(20, ge=1, le=100),
-    keyword: Optional[str] = None,
-    category: Optional[str] = None,
+    keyword: str | None = None,
+    category: str | None = None,
     db: AsyncSession = Depends(get_db)
 ):
     products = await ProductService.list_products(db, skip=skip, limit=limit, keyword=keyword, category=category)

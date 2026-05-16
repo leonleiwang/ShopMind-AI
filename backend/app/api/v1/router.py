@@ -1,6 +1,7 @@
 # backend/app/api/v1/router.py
 from fastapi import APIRouter
-from app.api.v1 import auth, products, orders, chatbot
+
+from app.api.v1 import auth, chatbot, orders, products
 
 # 后续会逐个注册以下路由
 # from app.api.v1 import auth

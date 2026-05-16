@@ -6,10 +6,10 @@ search. This manager keeps the Milvus/Chroma deployment choice centralized so
 semantic product retrieval can be wired in without changing API or Agent code.
 """
 
-from functools import cached_property
-from typing import Any
 import math
 import re
+from functools import cached_property
+from typing import Any
 
 from app.core.config import settings
 

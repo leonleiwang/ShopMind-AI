@@ -3,8 +3,9 @@ Pydantic 校验模型
 """
 
 # backend/app/schemas/product.py
+
 from pydantic import BaseModel
-from typing import Optional
+
 
 class ProductCreate(BaseModel):
     name: str
@@ -18,15 +19,15 @@ class ProductCreate(BaseModel):
     marketing_copy: str = ""
 
 class ProductUpdate(BaseModel):
-    name: Optional[str] = None
-    description: Optional[str] = None
-    price: Optional[float] = None
-    category: Optional[str] = None
-    brand: Optional[str] = None
-    image_url: Optional[str] = None
-    stock: Optional[int] = None
-    pricing_suggestion: Optional[str] = None
-    marketing_copy: Optional[str] = None
+    name: str | None = None
+    description: str | None = None
+    price: float | None = None
+    category: str | None = None
+    brand: str | None = None
+    image_url: str | None = None
+    stock: int | None = None
+    pricing_suggestion: str | None = None
+    marketing_copy: str | None = None
 
 class ProductResponse(BaseModel):
     id: int
@@ -37,8 +38,8 @@ class ProductResponse(BaseModel):
     brand: str
     image_url: str
     stock: int
-    pricing_suggestion: Optional[str] = ""
-    marketing_copy: Optional[str] = ""
+    pricing_suggestion: str | None = ""
+    marketing_copy: str | None = ""
 
     class Config:
         from_attributes = True

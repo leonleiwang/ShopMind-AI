@@ -3,13 +3,15 @@
 """
 
 # backend/app/services/order_service.py
-from typing import List
+
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, delete
 from sqlalchemy.orm import selectinload
+
 from app.models.cart import CartItem
 from app.models.order import Order, OrderItem
 from app.models.product import Product
+
 
 class CartService:
     @staticmethod
@@ -38,7 +40,7 @@ class CartService:
         return cart_item
 
     @staticmethod
-    async def get_cart(db: AsyncSession, user_id: int) -> List[dict]:
+    async def get_cart(db: AsyncSession, user_id: int) -> list[dict]:
         result = await db.execute(
             select(CartItem, Product)
             .join(Product, CartItem.product_id == Product.id)
@@ -110,7 +112,7 @@ class OrderService:
         return result.scalar_one_or_none()
 
     @staticmethod
-    async def list_user_orders(db: AsyncSession, user_id: int) -> List[Order]:
+    async def list_user_orders(db: AsyncSession, user_id: int) -> list[Order]:
         result = await db.execute(
             select(Order).options(selectinload(Order.items)).where(Order.user_id == user_id)
             .order_by(Order.created_at.desc())

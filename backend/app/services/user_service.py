@@ -3,10 +3,12 @@
 """
 
 # backend/app/services/user_service.py
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from app.models.user import User
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.core.security import get_password_hash, verify_password
+from app.models.user import User
+
 
 class UserService:
     @staticmethod

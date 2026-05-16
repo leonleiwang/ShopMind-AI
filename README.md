@@ -39,7 +39,7 @@
 - **多智能体协作**：由 Supervisor Agent 统一调度，Intent Router Agent (意图识别)、Planning Agent (任务分解)、Product Search Agent、Comparison Agent、Recommendation Agent、Cart & Order Agent 等组成虚拟电商运营团队，通过 MCP 和 A2A 协议标准化通信。
 - **AI 辅助运营**：通过 Celery 异步任务支持商品描述生成、动态定价建议、营销文案生成和个性化推荐刷新。
 - **实时可观测性**：SSE 展示 Agent 思考/工具调用过程，WebSocket 推送订单状态，运营仪表盘展示意图、工具、延迟和事件流。
-- **生产级工程化**：service 层独立、Celery 异步任务、PostgreSQL + Alembic 迁移、Pytest 测试、Docker 部署。
+- **生产级工程化雏形**：service 层独立、Celery 异步任务、PostgreSQL + Alembic 迁移、Redis-first 会话状态、LLM 网关治理、Pytest 测试、Docker 部署。
 
 
 ## 👤 作者 Author
@@ -96,6 +96,7 @@ flowchart LR
 - **异步任务**：Celery + Redis
 - **实时通信**：FastAPI SSE（对话流）+ WebSocket（订单状态推送）
 - **数据库**：PostgreSQL + Alembic 迁移
+- **会话状态**：Redis-first Conversation Store，Redis 不可用时回退本地内存以保证单机演示稳定
 - **部署**：Vercel（前端）+ Railway / AWS（后端）
 
 
@@ -260,15 +261,19 @@ VECTOR_STORE_TYPE=chroma
 | 商品 CRUD API | 已实现 |
 | 购物车 / 下单 API | 已实现 |
 | 对话式购物助手 | 已实现核心链路 |
-| Agent 意图识别 / 计划执行 | 已实现核心链路 |
+| 多轮澄清 / 会话状态 | 已实现 Redis-first Conversation Store、槽位追问和候选问题 |
+| Agent 意图识别 / 计划执行 | 已实现带 evidence / confidence / required_slots 的路由结果 |
 | 搜索 / 推荐 / 对比 / 加购 / 下单 | 已实现核心链路 |
 | SSE Agent 过程流式展示 | 已实现 |
 | Celery AI 运营任务 | 已实现商品描述 / 动态定价 / 营销文案 / 个性化推荐刷新 |
 | Milvus / Chroma 向量检索 | 已接入搜索语义排序，支持本地降级 |
 | MCP 独立 Tool Server | 已实现 HTTP MCP-style 工具发现与调用 |
+| LLM 网关治理 | 已实现 timeout / retry / circuit breaker / fallback |
+| Prompt 工程化 | 已实现 prompts/*.yaml 版本化模板 |
+| 工具并发治理 | 已实现 request-scoped ToolRegistry，避免多用户工具实例串线 |
 | WebSocket 订单状态推送 | 已实现 |
 | 后台仪表盘 / Agent 可观测性 | 已实现 `/dashboard` 运营仪表盘 |
-| Pytest 自动化测试 | 已补充核心 Agent / MCP / 向量排序测试 |
+| Pytest 自动化测试 | 已补充核心 Agent / MCP / 向量排序 / 治理组件测试 |
 
 
 ## 🎯 项目亮点
@@ -281,9 +286,9 @@ VECTOR_STORE_TYPE=chroma
 
 采用 Supervisor + Worker Agent 架构，通过 MCP / A2A 协议、Tool Calling、Agent 路由机制，具备可扩展、可观测、可组合等工程特性。
 
-### 生产级工程实践
+### Agent Governance & Production-Oriented Practices
 
-包含独立 Service 层、Celery 异步任务、PostgreSQL + Alembic、WebSocket 实时推送、Docker Compose、Pytest 自动化测试。
+包含独立 Service 层、Redis-first 多轮会话状态、request-scoped ToolRegistry、LLM Gateway（超时、重试、熔断、降级）、Prompt 版本化模板、Celery 异步任务、PostgreSQL + Alembic、WebSocket 实时推送、Docker Compose、Pytest 自动化测试。
 
 ### MCP 与 A2A 协议实现
 
@@ -307,14 +312,20 @@ VECTOR_STORE_TYPE=chroma
 
 ## 🔭 已知权衡与未来规划
 
-| 模块       | 当前实现            | 后续规划                 |
-| -------- | --------------- | -------------------- |
-| 向量数据库    | Milvus + Chroma | 环境变量自动切换             |
-| 搜索推荐     | 关键词 + 向量检索      | Elasticsearch 混合召回   |
-| 多语言支持    | 中文              | next-intl 国际化        |
-| 移动端适配    | PWA 基础支持        | 完整移动端优化              |
-| Agent 编排 | 代码配置            | 低代码拖拽画布              |
-| 性能优化     | SSR / SSG       | ISR + Edge Functions |
+本仓库定位为求职展示版和工程架构样板，已经实现智能购物 Agent 的核心链路与治理雏形；如果进入真实企业客服场景，还需要继续补齐以下生产化能力。
+
+| 模块 | 当前实现 | 后续规划 |
+| ---- | -------- | -------- |
+| 压测与容量规划 | 已使用 async FastAPI、DB pool、Celery、Redis 基础设施 | 用 Locust/k6 做并发压测，定义 QPS、P95/P99、SSE 长连接容量和扩容策略 |
+| 分布式会话存储 | Redis-first Conversation Store，单机 Redis 不可用时回退内存 | Redis Cluster/PostgreSQL 会话快照、跨实例恢复、会话 TTL 和隐私清理策略 |
+| 真实知识库 ingestion | 轻量业务知识检索器 + 向量层抽象 | 文档/FAQ/工单 ingestion pipeline、embedding 批处理、schema version、灰度重建索引 |
+| 路由与 RAG | 路由输出 intent / confidence / evidence / required_slots | 多路召回、rerank、低置信度人工复核、路由评测集和线上误判采样 |
+| 权限审计 | JWT 登录鉴权、基础用户隔离 | RBAC、后台操作审计日志、敏感工具权限、订单/用户数据访问审计 |
+| 灰度发布 | 环境变量配置模型、向量库和服务 URL | Prompt/模型/工具版本灰度、A/B 实验、回滚开关、release checklist |
+| 监控告警 | 内存级 AgentObservability 仪表盘 | OpenTelemetry、Prometheus/Grafana、集中日志、错误率和熔断告警 |
+| 人工坐席接入 | LLM/tool 异常时返回人工转接降级文案 | 对接工单/IM/CRM，传递 conversation_id、历史消息、槽位和失败原因 |
+| SLA 验证 | Pytest 和本地演示验证 | 线上 SLO/SLA、故障演练、备份恢复、依赖服务降级演练 |
+| 前端体验 | Web Chat、Dashboard、WebSocket 订单状态 | 移动端优化、国际化、无障碍、客服坐席后台 |
 
 
 ## 📦 部署架构 Deployment Architecture

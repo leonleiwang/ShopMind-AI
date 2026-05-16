@@ -14,6 +14,7 @@ class AgentObservability:
     _intents: Counter[str] = Counter()
     _tools: Counter[str] = Counter()
     _tool_errors: Counter[str] = Counter()
+    _llm: Counter[str] = Counter()
     _events: Counter[str] = Counter()
     _latency_ms: deque[float] = deque(maxlen=200)
     _recent: deque[dict[str, Any]] = deque(maxlen=50)
@@ -49,6 +50,26 @@ class AgentObservability:
             )
 
     @classmethod
+    def record_llm(cls, provider: str, latency_ms: float, ok: bool = True, degraded: bool = False) -> None:
+        """[反思2a/2b-韧性降级] 记录 LLM 网关成功、失败和降级事件。"""
+        key = "ok" if ok else "error"
+        if degraded:
+            key = "degraded"
+        with cls._lock:
+            cls._llm[f"{provider}:{key}"] += 1
+            cls._latency_ms.append(latency_ms)
+            cls._recent.appendleft(
+                {
+                    "type": "llm",
+                    "provider": provider,
+                    "latency_ms": round(latency_ms, 2),
+                    "ok": ok,
+                    "degraded": degraded,
+                    "ts": time.time(),
+                }
+            )
+
+    @classmethod
     def snapshot(cls) -> dict[str, Any]:
         with cls._lock:
             latencies = list(cls._latency_ms)
@@ -58,6 +79,7 @@ class AgentObservability:
                 "intent_counts": dict(cls._intents),
                 "tool_counts": dict(cls._tools),
                 "tool_error_counts": dict(cls._tool_errors),
+                "llm_counts": dict(cls._llm),
                 "sse_event_counts": dict(cls._events),
                 "avg_tool_latency_ms": round(avg_latency, 2),
                 "recent_events": list(cls._recent),

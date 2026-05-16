@@ -1,12 +1,15 @@
 # backend/app/services/chatbot/agents/comparison.py
-from app.core.llm import get_llm
-from app.services.chatbot.tools.caller import ToolCaller
 import json
 import re
 
+from app.core.llm_gateway import llm_gateway
+from app.services.chatbot.tools.caller import ToolCaller
+
+
 class ComparisonAgent:
-    def __init__(self):
-        self.llm = get_llm()
+    def __init__(self, tool_caller: ToolCaller):
+        self.llm = llm_gateway
+        self.tool_caller = tool_caller
 
     async def compare(self, user_message: str, conversation_history: list = None):
         ids = self._extract_product_ids(user_message)
@@ -15,7 +18,7 @@ class ComparisonAgent:
         if not ids:
             return "请先说出你想对比哪些商品。"
         # 调用对比工具
-        result = await ToolCaller.invoke("compare_products", product_ids=ids)
+        result = await self.tool_caller.invoke("compare_products", product_ids=ids)
         # 生成对比回答
         if not result:
             return "未找到这些商品。"
@@ -31,10 +34,10 @@ class ComparisonAgent:
 Message: {user_message}
 History: {json.dumps(conversation_history or [])}
 Output: [1, 2, 3]"""
-        resp = await self.llm.ainvoke(prompt)
+        resp = await self.llm.ainvoke(prompt, fallback_content="[]")
         try:
             return json.loads(resp.content)
-        except:
+        except json.JSONDecodeError:
             return []
 
     @staticmethod

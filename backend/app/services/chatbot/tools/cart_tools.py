@@ -4,8 +4,11 @@
 
 # backend/app/services/chatbot/tools/cart_tools.py
 from typing import Any
+
 from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.services.order_service import CartService
+
 
 class AddToCartTool:
     name = "add_to_cart"

@@ -8,6 +8,7 @@ __pycache__/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+.vscode/
 .venv/
 venv/
 
@@ -27,3 +28,7 @@ redis_data/
 
 .DS_Store
 Thumbs.db
+
+# Private interview/demo notes
+/demo-guide.md
+/docs/demo-guide.md

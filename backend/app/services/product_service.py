@@ -3,10 +3,12 @@
 """
 
 # backend/app/services/product_service.py
-from typing import List, Optional
+
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, delete
+
 from app.models.product import Product
+
 
 class ProductService:
     @staticmethod
@@ -18,7 +20,7 @@ class ProductService:
         return product
 
     @staticmethod
-    async def get_product(db: AsyncSession, product_id: int) -> Optional[Product]:
+    async def get_product(db: AsyncSession, product_id: int) -> Product | None:
         result = await db.execute(select(Product).where(Product.id == product_id))
         return result.scalar_one_or_none()
 
@@ -27,9 +29,9 @@ class ProductService:
         db: AsyncSession,
         skip: int = 0,
         limit: int = 20,
-        keyword: Optional[str] = None,
-        category: Optional[str] = None
-    ) -> List[Product]:
+        keyword: str | None = None,
+        category: str | None = None
+    ) -> list[Product]:
         query = select(Product)
         if keyword:
             query = query.where(Product.name.ilike(f"%{keyword}%") | Product.description.ilike(f"%{keyword}%"))
@@ -40,7 +42,7 @@ class ProductService:
         return result.scalars().all()
 
     @staticmethod
-    async def update_product(db: AsyncSession, product_id: int, update_data: dict) -> Optional[Product]:
+    async def update_product(db: AsyncSession, product_id: int, update_data: dict) -> Product | None:
         product = await ProductService.get_product(db, product_id)
         if not product:
             return None

@@ -3,10 +3,12 @@
 """
 
 # backend/app/models/order.py
-from sqlalchemy import Column, Integer, Float, String, DateTime, ForeignKey
+from sqlalchemy import Column, DateTime, Float, ForeignKey, Integer, String
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
+
 from app.db.base import Base
+
 
 class Order(Base):
     __tablename__ = "orders"

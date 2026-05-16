@@ -3,9 +3,11 @@
 """
 
 # backend/app/models/cart.py
-from sqlalchemy import Column, Integer, ForeignKey, DateTime
+from sqlalchemy import Column, DateTime, ForeignKey, Integer
 from sqlalchemy.sql import func
+
 from app.db.base import Base
+
 
 class CartItem(Base):
     __tablename__ = "cart_items"

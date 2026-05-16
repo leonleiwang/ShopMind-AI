@@ -4,15 +4,15 @@ API 路由
 
 # backend/app/api/v1/orders.py
 import json
-from typing import List
+
 from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect, status
 from jose import JWTError, jwt
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.core.config import settings
-from app.db.session import get_db
-from app.db.session import AsyncSessionLocal
+
 from app.api.deps import get_current_user
+from app.core.config import settings
+from app.db.session import AsyncSessionLocal, get_db
 from app.models.user import User
 from app.schemas.order import CartItemCreate, CartItemResponse, OrderResponse, OrderStatusUpdate
 from app.services.order_service import CartService, OrderService
@@ -72,7 +72,7 @@ async def add_to_cart(
     cart_item = await CartService.add_to_cart(db, current_user.id, item.product_id, item.quantity)
     return {"message": "Added to cart", "cart_item_id": cart_item.id}
 
-@router.get("/cart", response_model=List[CartItemResponse])
+@router.get("/cart", response_model=list[CartItemResponse])
 async def view_cart(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -96,14 +96,14 @@ async def place_order(
     try:
         order = await OrderService.create_order(db, current_user.id)
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
     await order_ws_manager.broadcast(
         order.id,
         {"event": "created", "order_id": order.id, "status": order.status, "total_amount": order.total_amount},
     )
     return order
 
-@router.get("/", response_model=List[OrderResponse])
+@router.get("/", response_model=list[OrderResponse])
 async def list_orders(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)

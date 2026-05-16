@@ -1,7 +1,8 @@
 # backend/app/core/config.py
-from typing import Optional, List
+
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
 
 class Settings(BaseSettings):
     # 核心应用配置
@@ -12,7 +13,7 @@ class Settings(BaseSettings):
     ENVIRONMENT: str = "development"
 
     # 跨域 (CORS) 配置
-    BACKEND_CORS_ORIGINS: List[str] = [
+    BACKEND_CORS_ORIGINS: list[str] = [
         "http://localhost:3000",  # Next.js 默认端口
         "http://127.0.0.1:3000",
         "http://localhost:5173"   # Vite 备用
@@ -40,7 +41,7 @@ class Settings(BaseSettings):
     #     return v
     
     # 数据库配置
-    DATABASE_URL: Optional[str] = None
+    DATABASE_URL: str | None = None
     POSTGRES_USER: str = "shopmind"
     POSTGRES_PASSWORD: str = "shopmind"
     POSTGRES_HOST: str = "localhost"
@@ -60,12 +61,14 @@ class Settings(BaseSettings):
                 f"{self.POSTGRES_PORT}/{self.POSTGRES_DATABASE}")
 
     # Redis 配置
-    REDIS_URL: Optional[str] = None
+    REDIS_URL: str | None = None
     REDIS_HOST: str = "localhost"
     REDIS_PORT: int = 6379
     REDIS_DB: int = 0
-    REDIS_PASSWORD: Optional[str] = None
+    REDIS_PASSWORD: str | None = None
     CELERY_TASK_ALWAYS_EAGER: bool = False
+    CONVERSATION_STATE_BACKEND: str = "redis"
+    CONVERSATION_STATE_TTL_SECONDS: int = 60 * 60 * 24
 
     @property
     def CELERY_BROKER_URL(self) -> str:
@@ -82,16 +85,20 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: str = ""
     OPENAI_MODEL_NAME: str = "qwen3-max"
     OPENAI_BASE_URL: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+    LLM_TIMEOUT_SECONDS: float = 8.0
+    LLM_MAX_RETRIES: int = 2
+    LLM_CIRCUIT_BREAKER_THRESHOLD: int = 3
+    LLM_CIRCUIT_BREAKER_RESET_SECONDS: int = 30
 
     # Embedding 配置
-    DASHSCOPE_API_KEY: Optional[str] = None
+    DASHSCOPE_API_KEY: str | None = None
     EMBEDDING_MODEL_NAME: str = "text-embedding-v4"
-    EMBEDDING_BASE_URL: Optional[str] = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+    EMBEDDING_BASE_URL: str | None = "https://dashscope.aliyuncs.com/compatible-mode/v1"
 
     # 向量数据库配置
     VECTOR_STORE_TYPE: str = "milvus"   # 生产用 "milvus"
-    MILVUS_URI: Optional[str] = None
-    MILVUS_TOKEN: Optional[str] = None
+    MILVUS_URI: str | None = None
+    MILVUS_TOKEN: str | None = None
     MILVUS_HOST: str = "localhost"
     MILVUS_PORT: int = 19530
     CHROMA_PERSIST_DIR: str = "./chroma_db"

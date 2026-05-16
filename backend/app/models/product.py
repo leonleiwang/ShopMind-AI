@@ -3,9 +3,11 @@
 """
 
 # backend/app/models/product.py
-from sqlalchemy import Column, Integer, String, Float, Text, DateTime
+from sqlalchemy import Column, DateTime, Float, Integer, String, Text
 from sqlalchemy.sql import func
+
 from app.db.base import Base
+
 
 class Product(Base):
     __tablename__ = "products"

@@ -1,8 +1,9 @@
 # backend/main.py
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.core.config import settings
+
 from app.api.v1.router import api_router
+from app.core.config import settings
 from app.mcp.server import router as mcp_router
 
 app = FastAPI(

@@ -4,10 +4,13 @@
 
 # backend/app/services/chatbot/tools/product_search.py
 from typing import Any
-from sqlalchemy.ext.asyncio import AsyncSession
+
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.models.product import Product
 from app.services.chatbot.vector_store_manager import vector_store_manager
+
 
 class ProductSearchTool:
     name = "search_products"

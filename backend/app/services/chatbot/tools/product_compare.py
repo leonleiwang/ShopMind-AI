@@ -3,10 +3,13 @@
 """
 
 # backend/app/services/chatbot/tools/product_compare.py
-from typing import Any, List
-from sqlalchemy.ext.asyncio import AsyncSession
+from typing import Any
+
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.models.product import Product
+
 
 class ProductCompareTool:
     name = "compare_products"
@@ -27,7 +30,7 @@ class ProductCompareTool:
         self.db = db
 
     async def execute(self, **kwargs) -> Any:
-        product_ids: List[int] = kwargs.get("product_ids", [])
+        product_ids: list[int] = kwargs.get("product_ids", [])
         if not product_ids:
             return []
         result = await self.db.execute(select(Product).where(Product.id.in_(product_ids)))
