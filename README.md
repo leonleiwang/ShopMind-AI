@@ -243,7 +243,7 @@ VECTOR_STORE_TYPE=chroma
 | 对话式购物助手 | ![加购物车和下单](docs/screenshots/Conversational_shopping_assistant.png) |
 | 商品 AI 搜索与对比 | ![智能搜索推荐商品和商品对比](docs/screenshots/Conversational_shopping_assistant.png) |
 | Agent 可观测性仪表盘 | ![Agent调用仪表盘](docs/screenshots/Agent_dashboard.png) |
-| AI自动化运营-商品描述/定价/营销文案 |<img src="docs/screenshots/Automated_operations-1.png" width="45%" /> <img src="docs/screenshots/Automated_operations-2.png" width="45%" /> |
+| AI自动化运营-商品描述/定价/营销文案 |<img src="docs/screenshots/Automated_operations-1.png" width="50%" /> <img src="docs/screenshots/Automated_operations-2.png" width="50%" /> |
 | WebSocket 实时订单推送 | ![实时订单推送](docs/screenshots/Real-time_WebSockert_order.png) |
 
 
