@@ -1,8 +1,8 @@
 ﻿# ShopMind AI – Multi-Agent Commerce System with MCP & RAG
 
-> **一句话概述**：面向下一代电商的智能体操作系统，对话式商务代理平台，以对话式交互、多智能体协作、MCP 标准协议驱动商品发现和 AI 自动化决策与运营，将购物方式和体验从“搜索”进化为“对话”，将购物决策链路从平均 8 次点击缩短为 1 句话，多智能体协作下单成功率 95%，未来电商的进化路线。
+> **一句话概述**：面向下一代电商的智能体操作系统，对话式商务代理平台，以对话式的自然语言交互、多智能体协作、MCP 标准协议驱动商品发现和 AI 自动化决策与运营，将购物方式和体验从“搜索”进化为“对话”，也将商品搜索、推荐、对比与下单流程整合为统一体验。目标是将购物决策链路从平均8次点击缩短为1句话，是电商的 AI 时代进化路线之一。
 
-> *An AI-native conversational commerce platform powered by LangGraph, MCP, and RAG. It evolves shopping from search to conversation, shortening decisions from 8 clicks to one sentence. Built with FastAPI, Next.js, PostgreSQL, and Qwen or Openai. The future of e-commerce.*
+> *This next-generation e-commerce intelligent agent operating system and conversational business agent platform uses conversational natural language interaction, multi-agent collaboration, and the MCP standard protocol to drive product discovery and AI-automated decision-making and operations. It evolves the shopping experience from "search" to "conversation," integrating product search, recommendation, comparison, and order placement into a unified experience. The goal is to shorten the shopping decision-making process from an average of eight clicks to just one sentence.*
 
 <!-- 1. 项目健康度：许可证、测试 -->
 ![License](https://img.shields.io/badge/license-MIT-blue)
@@ -33,12 +33,21 @@
 ![Docker](https://img.shields.io/badge/docker-compose-2496ED?logo=docker)
 
 
+## 🎯 项目背景与设计思路
+
+传统电商平台主要依赖关键词搜索、固定筛选条件与静态推荐逻辑。面对复杂购买需求（如预算、用途、性能与偏好组合），用户往往需要在多个页面之间反复筛选、比较与跳转，决策成本较高。
+
+随着大模型与 Agent 工作流的发展，自然语言交互逐渐成为新的用户入口。相比传统搜索，对话式购物（Conversational Commerce）允许用户直接表达需求，由系统完成商品检索、对比分析、推荐解释与购买辅助。
+
+基于这一思考，ShopMind AI 尝试构建一个面向电商场景的多智能体对话式系统，将搜索、推荐、对比、加购与下单流程整合为统一的自然语言交互体验，并探索 Agent workflow、RAG 检索增强与工具调用在智能电商中的工程化实践。
+
+
 ## 🧠 核心能力 Core competencies
 
 - **对话式购物助手**：自然语言交互，用户说"想买500元以内的蓝牙耳机，延迟要低"，AI 自动理解意图、提取参数、搜索商品、对比推荐。
 - **多智能体协作**：由 Supervisor Agent 统一调度，Intent Router Agent (意图识别)、Planning Agent (任务分解)、Product Search Agent、Comparison Agent、Recommendation Agent、Cart & Order Agent 等组成虚拟电商运营团队，通过 MCP 和 A2A 协议标准化通信。
 - **AI 辅助运营**：通过 Celery 异步任务支持商品描述生成、动态定价建议、营销文案生成和个性化推荐刷新。
-- **实时可观测性**：SSE 展示 Agent 思考/工具调用过程，WebSocket 推送订单状态，运营仪表盘展示意图、工具、延迟和事件流。
+- **实时可观测性**：SSE 展示 Agent 推理轨迹（ReAct-style trace）/工具调用过程，WebSocket 推送订单状态，运营仪表盘展示意图、工具、延迟和事件流。
 - **生产级工程化雏形**：service 层独立、Celery 异步任务、PostgreSQL + Alembic 迁移、Redis-first 会话状态、LLM 网关治理、Pytest 测试、Docker 部署。
 
 
@@ -47,8 +56,8 @@
 **王磊（Leon Wang）**<br>
 "AI Agent & LLM Application Engineer focused on Agentic and multi-agent Systems, RAG, modern AI Infrastructure, Machine Learning, AI-native products with LLMs and Fullstack AI Products."<br>
 <br>
-求职 - AI Agent 应用开发 | LLM 大模型开发 | AI Infra | 全栈工程师<br>
-AI Agent Engineer | LLM Application Engineer | AI Infrastructure Engineer | Fullstack Developer<br>
+求职 - AI Agent 应用开发 | LLM 大模型应用开发 | 全栈工程师 | AI 全栈产品开发<br>
+AI Agent Engineer | LLM Application Engineer | Fullstack Developer | Fullstack AI Products<br>
 <br>
 📍 Based in Nanjing / Shanghai / Hangzhou / Suzhou, China<br>
 📍 Open to opportunities across Sydney / Melbourne / Brisbane / Adelaide, Australia & Auckland, New Zealand (Work visa holder)<br>
@@ -310,6 +319,88 @@ VECTOR_STORE_TYPE=chroma
 参考 Norce Commerce Agent SDK、Agorio SDK、VTEX AI Workspace 等 2026 年 AI 电商前沿作品。
 
 
+## 🧩 挑战与解决方案
+
+### 1. 多轮对话中的模糊需求澄清
+
+**Challenge**
+
+真实客服和导购场景中，用户第一次输入往往是不完整或模糊的，例如“我想买一台适合办公的电脑”或“这个功能怎么不好用”。如果系统只依赖关键词搜索或 FAQ 向量匹配，容易出现召回不准、过早推荐或答非所问的问题。
+
+**Solution**
+
+新增会话状态管理与澄清 Agent，引入 `conversation_id`、历史消息、槽位状态和候选问题机制。系统会在预算、用途、品类、偏好等关键信息不足时触发追问，引导用户补充必要信息后再进入搜索、推荐、对比或下单流程。会话存储采用 Redis-first 设计，Redis 不可用时回退内存，以兼顾本地演示稳定性和生产化扩展方向。
+
+---
+
+### 2. 有依据的 Agent 路由与工具选择
+
+**Challenge**
+
+复杂业务场景中，仅依靠大模型直接判断用户意图容易出现分类不稳定、缺少判断依据和工具误调用等问题。电商系统中的搜索、推荐、对比、加购、下单等任务边界不同，需要更清晰的路由依据和参数约束。
+
+**Solution**
+
+升级 Intent Router，使路由结果结构化输出 `intent / confidence / evidence / required_slots`，并接入工具 schema 与轻量业务知识检索。Agent 在执行前会先判断任务类型、置信度、必要参数和依据来源，降低无依据 function calling 带来的不稳定性，也为后续接入更完整的企业知识库和评测集预留空间。
+
+---
+
+### 3. 多用户并发下的工具上下文隔离
+
+**Challenge**
+
+第一版中存在全局 ToolRegistry 持有用户态工具实例的风险。多用户并发访问时，不同请求可能共享或覆盖工具实例，导致用户态、数据库 session 或工具上下文串线，属于真实上线时比较严重的并发隐患。
+
+**Solution**
+
+去掉全局用户态 ToolRegistry，改为 request-scoped registry / caller 设计。每次请求都会创建独立工具上下文，避免多用户并发下的状态污染，提高 Agent 工具调用链路的安全性、可维护性和可测试性。
+
+---
+
+### 4. LLM 调用链路的韧性治理与降级
+
+**Challenge**
+
+真实生产环境中，大模型 API 可能出现超时、限流、错误响应或结果不稳定。如果缺少统一治理层，Agent workflow 可能直接中断，导致 SSE 断流、前端报错或向用户暴露系统异常。
+
+**Solution**
+
+新增 LLM Gateway，集中处理 timeout、retry、circuit breaker 与 fallback，并将 LLM 调用状态写入 observability。Chat API 和 SSE 流式接口在异常时返回可控降级消息，而不是直接中断服务，为后续接入人工客服、规则兜底、多模型切换和线上告警预留扩展点。
+
+---
+
+### 5. Prompt 与模型调用的工程化管理
+
+**Challenge**
+
+Agent 系统通常包含大量路由、规划、搜索参数抽取和工具调用 prompt。如果 prompt 全部硬编码在业务代码中，后续优化、回归测试、模型替换或多人协作时容易产生维护成本和重构风险。
+
+**Solution**
+
+将路由、搜索参数抽取和规划 prompt 拆分为版本化 YAML 模板，放入 `prompts/` 目录统一管理；同时通过模型调用封装层隔离不同 LLM API，降低后续替换模型、调整 prompt 或扩展评测样例时对业务代码的影响。
+
+
+## 🚀 开发时间线
+
+### 2025
+开始从传统软件开发转向 AI Agent 系统与 LLM Application 方向，根据之前的项目中对 Amazon、Temu 等电商场景的探索经验，逐渐形成设计初衷，之后逐步完成方向探索与架构调研，调研多 Agent、RAG、Tool Calling 与电商场景可行性验证。
+
+### Q4 2025
+持续进行 AI 应用开发实践，围绕多智能体工作流、向量检索、Prompt 工程化与 LLM API 集成等方向迭代，逐步聚焦智能客服与电商场景，形成 ShopMind AI 的核心设计方向。
+
+### Q1 2026
+完成 ShopMind AI 第一版原型，实现多 Agent 对话式购物、商品搜索/推荐/对比、购物车与订单链路，引入 RAG 检索增强、向量数据库抽象与工具调用机制，并支持 SSE 可观测性与 Dashboard。
+
+### Q2 2026
+完成第一轮 Agent Governance & Routing Hardening，包括：
+- Redis-first Conversation Store
+- request-scoped ToolRegistry
+- LLM Gateway（timeout / retry / fallback）
+- Prompt YAML versioning
+- Intent routing（confidence / evidence / required_slots）
+- SSE graceful degradation
+
+
 ## 🔭 已知权衡与未来规划
 
 本仓库定位为求职展示版和工程架构样板，已经实现智能购物 Agent 的核心链路与治理雏形；如果进入真实企业客服场景，还需要继续补齐以下生产化能力。
@@ -360,7 +451,6 @@ VECTOR_STORE_TYPE=chroma
 
 后端会优先读取 `DATABASE_URL`；没有该变量时，回退到 `POSTGRES_USER`、`POSTGRES_PASSWORD`、`POSTGRES_HOST`、`POSTGRES_PORT`、`POSTGRES_DATABASE`。
 
-
 ### Vector Store：Milvus
 
 生产建议使用 Zilliz Cloud / Milvus Cloud，并配置：
@@ -373,18 +463,6 @@ VECTOR_STORE_TYPE=chroma
 
 - `VECTOR_STORE_TYPE=chroma`
 
-
-## 🛠 Engineering Practices
-
-- Layered Architecture (API / Service / Repository)
-- Environment-based Configuration
-- GitHub Actions CI
-- Dockerized Development
-- Alembic Database Migration
-- Async Task Queue with Celery
-- Vector Store Abstraction
-- WebSocket Real-time Communication
-- Typed API Schemas with Pydantic
 
 ## 📄 License
 MIT License
