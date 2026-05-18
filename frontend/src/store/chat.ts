@@ -9,14 +9,20 @@ export interface ChatMessage {
 
 interface ChatState {
   messages: ChatMessage[];
+  isStreaming: boolean;
+  error: string;
   addMessage: (msg: ChatMessage) => void;
   updateLastAssistant: (content: string) => void;
   appendStep: (step: { type: string; data: string }) => void;
+  setStreaming: (value: boolean) => void;
+  setError: (message: string) => void;
   clearMessages: () => void;
 }
 
 export const useChatStore = create<ChatState>((set) => ({
   messages: [],
+  isStreaming: false,
+  error: '',
   addMessage: (msg) => set((state) => ({ messages: [...state.messages, msg] })),
   updateLastAssistant: (content) =>
     set((state) => {
@@ -37,5 +43,7 @@ export const useChatStore = create<ChatState>((set) => ({
       }
       return { messages: msgs };
     }),
-  clearMessages: () => set({ messages: [] }),
+  setStreaming: (value) => set({ isStreaming: value }),
+  setError: (message) => set({ error: message }),
+  clearMessages: () => set({ messages: [], error: '' }),
 }));

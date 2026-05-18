@@ -1,15 +1,16 @@
-// 后台仪表盘 / Agent 可观测性：展示 intent、tool、SSE、latency、WebSocket、AI 运营任务
+﻿// 后台仪表盘 / Agent 可观测性：展示 intent、tool、SSE、latency、WebSocket、AI 运营任务
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
-import type { ReactNode } from 'react';
 import { api, getWebSocketUrl } from '@/services/api';
+import Link from 'next/link';
+import { ReactNode, useEffect, useMemo, useState } from 'react';
 
 type Metrics = {
   uptime_seconds: number;
   intent_counts: Record<string, number>;
   tool_counts: Record<string, number>;
   tool_error_counts: Record<string, number>;
+  llm_counts?: Record<string, number>;
   sse_event_counts: Record<string, number>;
   avg_tool_latency_ms: number;
   recent_events: Array<Record<string, unknown>>;
@@ -38,10 +39,13 @@ const emptyMetrics: Metrics = {
   intent_counts: {},
   tool_counts: {},
   tool_error_counts: {},
+  llm_counts: {},
   sse_event_counts: {},
   avg_tool_latency_ms: 0,
   recent_events: [],
 };
+
+const dashboardCategories = ['Agent 路由', 'MCP 工具', 'LLM 网关', 'SSE', '订单状态', 'AI 运营'];
 
 export default function OpsDashboardPage() {
   const [metrics, setMetrics] = useState<Metrics>(emptyMetrics);
@@ -55,6 +59,14 @@ export default function OpsDashboardPage() {
   const totalToolCalls = useMemo(
     () => Object.values(metrics.tool_counts).reduce((sum, value) => sum + value, 0),
     [metrics.tool_counts],
+  );
+  const totalLlmEvents = useMemo(
+    () => Object.values(metrics.llm_counts ?? {}).reduce((sum, value) => sum + value, 0),
+    [metrics.llm_counts],
+  );
+  const totalErrors = useMemo(
+    () => Object.values(metrics.tool_error_counts).reduce((sum, value) => sum + value, 0),
+    [metrics.tool_error_counts],
   );
 
   const loadDashboard = async () => {
@@ -157,153 +169,150 @@ export default function OpsDashboardPage() {
     });
 
   return (
-    <main className="min-h-screen bg-slate-950 text-slate-100">
-      <div className="mx-auto flex max-w-7xl flex-col gap-6 px-6 py-8">
-        <header className="flex flex-wrap items-end justify-between gap-4 border-b border-slate-800 pb-5">
-          <div>
-            <h1 className="text-2xl font-semibold">ShopMind AI 运营仪表盘</h1>
-            <p className="mt-2 text-sm text-slate-400">
-              Agent 调用、SSE 事件、订单 WebSocket、AI 运营任务统一观测。
-            </p>
+    <main className="min-h-screen bg-[#f4f7fb] text-slate-900">
+      <header className="bg-[#123b5d] text-white shadow-sm">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-5 py-3 lg:px-8">
+          <Link className="flex items-center gap-3" href="/">
+            <span className="grid h-10 w-10 place-items-center rounded-lg bg-[#ffca45] text-sm font-black text-[#102033]">
+              SM
+            </span>
+            <span>
+              <span className="block font-semibold">ShopMind AI</span>
+              <span className="block text-xs text-sky-100/75">Operations dashboard</span>
+            </span>
+          </Link>
+          <nav className="flex items-center gap-2 text-sm">
+            <Link className="hidden rounded-lg px-3 py-2 text-sky-50 hover:bg-white/10 md:inline" href="/chat">
+              AI 客服
+            </Link>
+            <Link className="hidden rounded-lg px-3 py-2 text-sky-50 hover:bg-white/10 md:inline" href="/dashboard">
+              我的订单
+            </Link>
+            <Link className="rounded-lg bg-[#ffca45] px-3 py-2 font-semibold text-[#102033] hover:bg-[#ffd873]" href="/chat">
+              返回购物
+            </Link>
+          </nav>
+        </div>
+        <div className="border-t border-white/10 bg-[#1d6389]">
+          <div className="mx-auto flex max-w-7xl gap-2 overflow-x-auto px-5 py-2 lg:px-8">
+            {dashboardCategories.map((category) => (
+              <span key={category} className="shrink-0 rounded-full bg-[#dff3f8] px-3 py-1.5 text-xs font-medium text-[#12445f]">
+                {category}
+              </span>
+            ))}
           </div>
-          <button
-            className="rounded bg-cyan-500 px-4 py-2 text-sm font-medium text-slate-950"
-            onClick={loadDashboard}
-          >
-            刷新
-          </button>
+        </div>
+      </header>
+
+      <div className="mx-auto flex max-w-7xl flex-col gap-5 px-5 py-6 lg:px-8">
+        <header className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <p className="text-xs uppercase tracking-[0.28em] text-slate-500">Operations cockpit</p>
+              <h1 className="mt-2 text-3xl font-semibold tracking-tight">ShopMind AI 仪表盘</h1>
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
+                统一观察 Agent 路由、MCP 工具、LLM 网关、SSE 事件和订单 WebSocket 状态。
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Link
+                className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-[#123b5d] transition hover:border-[#9bd7e7] hover:bg-[#f3fbfd]"
+                href="/chat"
+              >
+                Chat
+              </Link>
+              <button
+                className="rounded-lg bg-[#1d6389] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#123b5d]"
+                onClick={loadDashboard}
+              >
+                刷新数据
+              </button>
+            </div>
+          </div>
         </header>
 
         {error ? (
-          <div className="rounded border border-amber-500/40 bg-amber-500/10 p-3 text-amber-100">
+          <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
             {error}
           </div>
         ) : null}
 
-        <section className="grid gap-4 md:grid-cols-4">
-          <MetricCard label="运行时间" value={`${metrics.uptime_seconds}s`} />
-          <MetricCard label="工具调用" value={totalToolCalls.toString()} />
-          <MetricCard label="平均延迟" value={`${metrics.avg_tool_latency_ms}ms`} />
-          <MetricCard label="订单数量" value={orders.length.toString()} />
+        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+          <MetricCard label="Uptime" value={formatUptime(metrics.uptime_seconds)} caption="API process" />
+          <MetricCard label="Tool calls" value={totalToolCalls.toString()} caption={`${totalErrors} errors`} />
+          <MetricCard label="LLM events" value={totalLlmEvents.toString()} caption="ok / error / degraded" />
+          <MetricCard label="Avg latency" value={`${metrics.avg_tool_latency_ms}ms`} caption="tool + llm samples" />
+          <MetricCard label="Orders" value={orders.length.toString()} caption={latestOrderId ? `watching #${latestOrderId}` : 'no active order'} />
         </section>
 
-        <section className="grid gap-6 lg:grid-cols-2">
-          <Panel title="Agent 意图分布">
+        <section className="grid gap-5 xl:grid-cols-[1.05fr_0.95fr]">
+          <Panel title="Agent routing" eyebrow="intent / evidence">
             <KeyValueList data={metrics.intent_counts} empty="暂无意图数据，先在聊天页发起一次对话。" />
           </Panel>
-          <Panel title="MCP 工具调用">
+          <Panel title="MCP tools" eyebrow="request-scoped calls">
             <KeyValueList data={metrics.tool_counts} empty="暂无工具调用。" />
           </Panel>
-          <Panel title="SSE 事件流">
+        </section>
+
+        <section className="grid gap-5 xl:grid-cols-3">
+          <Panel title="LLM gateway" eyebrow="timeout / retry / fallback">
+            <KeyValueList data={metrics.llm_counts ?? {}} empty="暂无 LLM 网关事件。" />
+          </Panel>
+          <Panel title="SSE stream" eyebrow="frontend process events">
             <KeyValueList data={metrics.sse_event_counts} empty="暂无 SSE 事件。" />
           </Panel>
-          <Panel title="订单 WebSocket">
-            {wsEvents.length ? (
-              <div className="max-h-64 space-y-2 overflow-y-auto pr-1">
-                {wsEvents.map((event, index) => (
-                  <pre
-                    key={`${event}-${index}`}
-                    className="whitespace-pre-wrap break-words rounded bg-slate-900 p-3 text-xs text-cyan-100"
-                  >
-                    {event}
-                  </pre>
+          <Panel title="Order WebSocket" eyebrow="latest snapshot">
+            <EventList
+              events={wsEvents}
+              empty="暂无订单快照。创建订单后这里会显示实时状态。"
+              tone="cyan"
+            />
+          </Panel>
+        </section>
+
+        <section className="grid gap-5 xl:grid-cols-[1.35fr_0.65fr]">
+          <Panel title="商品运营任务" eyebrow="AI operations">
+            {products.length ? (
+              <div className="grid gap-3">
+                {products.map((product) => (
+                  <ProductOpsRow
+                    key={product.id}
+                    product={product}
+                    onDescription={() => queueDescription(product.id)}
+                    onPricing={() => queuePricing(product.id)}
+                    onMarketing={() => queueMarketing(product.id)}
+                  />
                 ))}
               </div>
             ) : (
-              <p className="text-sm text-slate-400">暂无订单快照。创建订单后这里会显示实时状态。</p>
+              <EmptyBox title="暂无商品" body="先在 Swagger 或后台接口创建商品，再展示运营任务。" />
             )}
-          </Panel>
-        </section>
 
-        <section className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
-          <Panel title="商品运营任务">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
-                <thead className="text-slate-400">
-                  <tr>
-                    <th className="py-2">商品</th>
-                    <th>分类</th>
-                    <th>价格</th>
-                    <th>库存</th>
-                    <th>AI 运营任务</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {products.map((product) => (
-                    <tr key={product.id} className="border-t border-slate-800">
-                      <td className="py-3">
-                        <div className="font-medium">{product.name}</div>
-                        <div className="mt-1 max-w-xs truncate text-xs text-slate-400">
-                          {product.description || '暂无描述'}
-                        </div>
-                        {product.pricing_suggestion ? (
-                          <div className="mt-1 max-w-xs truncate text-xs text-emerald-300">
-                            定价: {formatPricing(product.pricing_suggestion)}
-                          </div>
-                        ) : null}
-                        {product.marketing_copy ? (
-                          <div className="mt-1 max-w-xs truncate text-xs text-fuchsia-300">
-                            文案: {product.marketing_copy}
-                          </div>
-                        ) : null}
-                      </td>
-                      <td>{product.category || '-'}</td>
-                      <td>¥{product.price}</td>
-                      <td>{product.stock}</td>
-                      <td>
-                        <div className="flex flex-wrap gap-2">
-                          <button
-                            className="rounded border border-cyan-500/50 px-3 py-1 text-xs text-cyan-200"
-                            onClick={() => queueDescription(product.id)}
-                          >
-                            描述
-                          </button>
-                          <button
-                            className="rounded border border-emerald-500/50 px-3 py-1 text-xs text-emerald-200"
-                            onClick={() => queuePricing(product.id)}
-                          >
-                            定价
-                          </button>
-                          <button
-                            className="rounded border border-fuchsia-500/50 px-3 py-1 text-xs text-fuchsia-200"
-                            onClick={() => queueMarketing(product.id)}
-                          >
-                            文案
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="mt-4 flex flex-wrap items-center gap-3">
+              <button
+                className="rounded-lg bg-[#ffca45] px-4 py-2 text-sm font-semibold text-[#102033] transition hover:bg-[#ffd873]"
+                onClick={refreshRecommendations}
+              >
+                刷新个性化推荐
+              </button>
+              <span className="text-xs text-slate-500">Celery eager 或 worker 均可演示</span>
             </div>
-            <button
-              className="mt-4 rounded bg-emerald-500 px-4 py-2 text-sm font-medium text-slate-950"
-              onClick={refreshRecommendations}
-            >
-              刷新个性化推荐
-            </button>
+
             {taskEvents.length ? (
-              <div className="mt-4 max-h-40 space-y-2 overflow-y-auto pr-1">
-                {taskEvents.map((event, index) => (
-                  <div key={`${event}-${index}`} className="rounded bg-slate-950 px-3 py-2 text-xs text-slate-300">
-                    {event}
-                  </div>
-                ))}
+              <div className="mt-4">
+                <EventList events={taskEvents} empty="" tone="emerald" />
               </div>
             ) : null}
           </Panel>
 
-          <Panel title="最近事件">
-            <div className="max-h-96 space-y-2 overflow-y-auto pr-1">
+          <Panel title="最近事件" eyebrow="observability">
+            <div className="max-h-[520px] space-y-2 overflow-y-auto pr-1">
               {metrics.recent_events.length ? (
-                metrics.recent_events.slice(0, 8).map((event, index) => (
-                  <pre key={index} className="whitespace-pre-wrap break-words rounded bg-slate-900 p-3 text-xs text-slate-300">
-                    {JSON.stringify(event, null, 2)}
-                  </pre>
+                metrics.recent_events.slice(0, 10).map((event, index) => (
+                  <EventCard key={index} event={event} />
                 ))
               ) : (
-                <p className="text-sm text-slate-400">暂无事件。</p>
+                <EmptyBox title="暂无事件" body="进行一次聊天或工具调用后，这里会出现最近事件。" />
               )}
             </div>
           </Panel>
@@ -313,35 +322,146 @@ export default function OpsDashboardPage() {
   );
 }
 
-function MetricCard({ label, value }: { label: string; value: string }) {
+function MetricCard({ label, value, caption }: { label: string; value: string; caption: string }) {
   return (
-    <div className="rounded border border-slate-800 bg-slate-900 p-4">
-      <div className="text-sm text-slate-400">{label}</div>
-      <div className="mt-2 text-2xl font-semibold">{value}</div>
-    </div>
+    <article className="rounded-lg border border-slate-200 bg-white p-5">
+      <div className="text-xs uppercase tracking-[0.18em] text-slate-500">{label}</div>
+      <div className="mt-3 text-3xl font-semibold tracking-tight text-slate-900">{value}</div>
+      <div className="mt-2 text-xs text-slate-500">{caption}</div>
+    </article>
   );
 }
 
-function Panel({ title, children }: { title: string; children: ReactNode }) {
+function Panel({ title, eyebrow, children }: { title: string; eyebrow: string; children: ReactNode }) {
   return (
-    <section className="rounded border border-slate-800 bg-slate-900/70 p-5">
-      <h2 className="mb-4 text-base font-semibold">{title}</h2>
+    <section className="rounded-lg border border-slate-200 bg-white p-5">
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <div>
+          <p className="text-xs uppercase tracking-[0.2em] text-slate-500">{eyebrow}</p>
+          <h2 className="mt-1 text-lg font-semibold text-slate-900">{title}</h2>
+        </div>
+      </div>
       {children}
     </section>
   );
 }
 
 function KeyValueList({ data, empty }: { data: Record<string, number>; empty: string }) {
-  const entries = Object.entries(data);
-  if (!entries.length) return <p className="text-sm text-slate-400">{empty}</p>;
+  const entries = Object.entries(data).sort((a, b) => b[1] - a[1]);
+  const max = Math.max(...entries.map(([, value]) => value), 1);
+
+  if (!entries.length) return <EmptyBox title="Empty state" body={empty} />;
   return (
-    <div className="space-y-2">
+    <div className="space-y-3">
       {entries.map(([key, value]) => (
-        <div key={key} className="flex items-center justify-between rounded bg-slate-950 px-3 py-2 text-sm">
-          <span>{key}</span>
-          <span className="font-mono text-cyan-200">{value}</span>
+        <div key={key} className="rounded-lg border border-slate-200 bg-[#fbfcfe] p-3">
+          <div className="flex items-center justify-between gap-3 text-sm">
+            <span className="font-medium text-slate-700">{key}</span>
+            <span className="font-mono text-[#12445f]">{value}</span>
+          </div>
+          <div className="mt-3 h-1.5 rounded-full bg-slate-200">
+            <div className="h-full rounded-full bg-[#1d6389]" style={{ width: `${Math.max((value / max) * 100, 8)}%` }} />
+          </div>
         </div>
       ))}
+    </div>
+  );
+}
+
+function ProductOpsRow({
+  product,
+  onDescription,
+  onPricing,
+  onMarketing,
+}: {
+  product: Product;
+  onDescription: () => void;
+  onPricing: () => void;
+  onMarketing: () => void;
+}) {
+  return (
+    <article className="grid gap-4 rounded-lg border border-slate-200 bg-[#fbfcfe] p-4 lg:grid-cols-[1fr_auto]">
+      <div>
+        <div className="flex flex-wrap items-center gap-2">
+          <h3 className="font-semibold text-slate-900">{product.name}</h3>
+          <span className="rounded-full bg-[#1d6389]/10 px-2.5 py-1 text-xs font-medium text-[#12445f]">
+            {product.category || '未分类'}
+          </span>
+          <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-600">库存 {product.stock}</span>
+        </div>
+        <p className="mt-2 line-clamp-2 text-sm leading-6 text-slate-500">{product.description || '暂无描述'}</p>
+        <div className="mt-3 flex flex-wrap gap-2 text-xs">
+          <span className="rounded-lg bg-[#fff7dd] px-2.5 py-1 font-semibold text-[#7a4b00]">¥{product.price}</span>
+          {product.pricing_suggestion ? (
+            <span className="rounded-lg bg-emerald-50 px-2.5 py-1 text-emerald-700">
+              定价: {formatPricing(product.pricing_suggestion)}
+            </span>
+          ) : null}
+          {product.marketing_copy ? (
+            <span className="rounded-lg bg-[#e8f6fa] px-2.5 py-1 text-[#12445f]">文案已生成</span>
+          ) : null}
+        </div>
+      </div>
+      <div className="flex flex-wrap items-center gap-2 lg:justify-end">
+        <TaskButton onClick={onDescription}>描述</TaskButton>
+        <TaskButton onClick={onPricing}>定价</TaskButton>
+        <TaskButton onClick={onMarketing}>文案</TaskButton>
+      </div>
+    </article>
+  );
+}
+
+function TaskButton({ children, onClick }: { children: ReactNode; onClick: () => void }) {
+  return (
+    <button
+      className="rounded-lg border border-[#9bd7e7] px-3 py-2 text-xs font-semibold text-[#12445f] transition hover:border-sky-300/60 hover:bg-[#1d6389]/10"
+      onClick={onClick}
+    >
+      {children}
+    </button>
+  );
+}
+
+function EventList({ events, empty, tone }: { events: string[]; empty: string; tone: 'cyan' | 'emerald' }) {
+  if (!events.length) return <EmptyBox title="No events" body={empty} />;
+  const color = tone === 'cyan' ? 'text-[#12445f] border-[#cfe7ef]' : 'text-emerald-700 border-emerald-200';
+  return (
+    <div className="max-h-64 space-y-2 overflow-y-auto pr-1">
+      {events.map((event, index) => (
+        <pre
+          key={`${event}-${index}`}
+          className={`whitespace-pre-wrap break-words rounded-lg border bg-[#fbfcfe] p-3 text-xs leading-5 ${color}`}
+        >
+          {event}
+        </pre>
+      ))}
+    </div>
+  );
+}
+
+function EventCard({ event }: { event: Record<string, unknown> }) {
+  const type = String(event.type ?? 'event');
+  const ok = event.ok;
+  return (
+    <div className="rounded-lg border border-slate-200 bg-[#fbfcfe] p-3">
+      <div className="flex items-center justify-between gap-2">
+        <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700">{type}</span>
+        {typeof ok === 'boolean' ? (
+          <span className={ok ? 'text-xs text-emerald-700' : 'text-xs text-amber-700'}>{ok ? 'ok' : 'attention'}</span>
+        ) : null}
+      </div>
+      <pre className="mt-3 whitespace-pre-wrap break-words text-xs leading-5 text-slate-500">
+        {JSON.stringify(event, null, 2)}
+      </pre>
+    </div>
+  );
+}
+
+function EmptyBox({ title, body }: { title: string; body: string }) {
+  return (
+    <div className="rounded-lg border border-dashed border-slate-300 bg-[#fbfcfe] p-4">
+      <p className="text-sm font-medium text-slate-700">{title}</p>
+      <p className="mt-1 text-sm leading-6 text-slate-500">{body}</p>
     </div>
   );
 }
@@ -356,4 +476,11 @@ function formatPricing(value: string) {
     return value;
   }
   return value;
+}
+
+function formatUptime(seconds: number) {
+  if (seconds < 60) return `${seconds}s`;
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m`;
+  return `${Math.floor(minutes / 60)}h`;
 }

@@ -24,8 +24,12 @@ export function useChatStream() {
   const addMessage = useChatStore((s) => s.addMessage);
   const updateLastAssistant = useChatStore((s) => s.updateLastAssistant);
   const appendStep = useChatStore((s) => s.appendStep);
+  const setStreaming = useChatStore((s) => s.setStreaming);
+  const setError = useChatStore((s) => s.setError);
 
   const sendMessage = (message: string, token: string) => {
+    setError('');
+    setStreaming(true);
     addMessage({ role: 'user', content: message });
     addMessage({ role: 'assistant', content: '', steps: [] });
 
@@ -61,11 +65,15 @@ export function useChatStream() {
     source.addEventListener('final', (e: MessageEvent<string>) => {
       const data = parseEventData(e);
       updateLastAssistant(toDisplayText(data.content));
+      setStreaming(false);
       source.close();
     });
 
     source.onerror = () => {
-      updateLastAssistant('连接错误，请重试。');
+      const message = '连接错误，请确认后端服务可访问后重试。';
+      updateLastAssistant(message);
+      setError(message);
+      setStreaming(false);
       source.close();
     };
   };

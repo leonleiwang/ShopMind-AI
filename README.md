@@ -240,11 +240,11 @@ VECTOR_STORE_TYPE=chroma
 
 | 功能 | 截图 |
 |------|------|
-| 对话式购物助手 | ![加购物车和下单](docs/screenshots/Conversational_shopping_assistant.png) |
-| 商品 AI 搜索与对比 | ![智能搜索推荐商品和商品对比](docs/screenshots/Conversational_shopping_assistant.png) |
-| Agent 可观测性仪表盘 | ![Agent调用仪表盘](docs/screenshots/Agent_dashboard.png) |
-| AI自动化运营-商品描述/定价/营销文案 |<img src="docs/screenshots/Automated_operations-1.png" width="49%" /> <img src="docs/screenshots/Automated_operations-2.png" width="49%" /> |
-| WebSocket 实时订单推送 | ![实时订单推送](docs/screenshots/Real-time_WebSockert_order.png) |
+| 对话式购物助手 | ![加购物车和下单](docs/screenshots/Conversational_shopping_assistant-1.png) |
+| 商品 AI 搜索与对比 | ![智能搜索推荐商品和商品对比](docs/screenshots/Conversational_shopping_assistant-2.png) |
+| Agent 可观测性仪表盘 | ![Agent调用仪表盘](docs/screenshots/Agent_dashboard-1.png) |
+| AI自动化运营-商品描述/定价/营销文案 | ![Agent智能运营](docs/screenshots/Automated_operations-1.png) |
+| WebSocket 实时订单推送 | ![实时订单推送](docs/screenshots/Real-time_WebSockert_order-1.png) |
 
 
 ## ✅ 当前完成度 Current Completion Status
