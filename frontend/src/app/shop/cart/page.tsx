@@ -4,7 +4,7 @@ import RoleGuard from '@/components/auth/RoleGuard';
 import RoleNav from '@/components/auth/RoleNav';
 import { api } from '@/services/api';
 import Link from 'next/link';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 type CartItem = {
   id: number;
@@ -27,7 +27,7 @@ function CartContent() {
   const [error, setError] = useState('');
   const total = useMemo(() => items.reduce((sum, item) => sum + item.quantity * item.unit_price, 0), [items]);
 
-  const loadCart = async () => {
+  const loadCart = useCallback(async () => {
     try {
       const response = await api.get('/orders/cart');
       setItems(response.data);
@@ -35,11 +35,14 @@ function CartContent() {
     } catch {
       setError('购物车加载失败，请确认后端服务和登录状态。');
     }
-  };
+  }, []);
 
   useEffect(() => {
-    void loadCart();
-  }, []);
+    const timer = window.setTimeout(() => {
+      void loadCart();
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [loadCart]);
 
   return (
     <main className="min-h-screen bg-[#f4f7fb] px-5 py-6 text-slate-900 lg:px-8">

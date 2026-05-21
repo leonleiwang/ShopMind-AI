@@ -77,10 +77,11 @@ function AdminDashboardContent() {
 
         {error ? <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">{error}</div> : null}
 
-        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
           <MetricCard label="商品数量" value={products.length.toString()} caption="当前演示商品库" />
           <MetricCard label="库存总量" value={totalStock.toString()} caption="所有商品库存合计" />
           <MetricCard label="类目数量" value={categories.toString()} caption="用于自然语言选品" />
+          <MetricCard label="低库存" value={lowStock.toString()} caption="库存不高于 10 的商品" />
           <MetricCard label="AI 草稿" value={aiDrafts.toString()} caption="待审核或已生成" />
         </section>
 

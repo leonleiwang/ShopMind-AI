@@ -6,7 +6,7 @@ import { api } from '@/services/api';
 import { useAuthStore } from '@/store/auth';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ReactNode, useEffect, useMemo, useState } from 'react';
+import { ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
 
 type Approval = {
   id: number;
@@ -59,7 +59,7 @@ function GovernanceContent() {
   const pendingCount = useMemo(() => approvals.filter((item) => item.status === 'pending').length, [approvals]);
   const highRiskCount = useMemo(() => approvals.filter((item) => item.risk_level === 'high').length, [approvals]);
 
-  const loadGovernance = async () => {
+  const loadGovernance = useCallback(async () => {
     try {
       const [approvalRes, auditRes] = await Promise.all([
         api.get('/approvals/', { params: { limit: 40, scope: 'governance' } }),
@@ -71,16 +71,21 @@ function GovernanceContent() {
     } catch {
       setError('风控治理数据加载失败：请确认已登录且后端服务可访问。');
     }
-  };
+  }, []);
 
   useEffect(() => {
     if (!token) return;
-    void loadGovernance();
+    const initialTimer = window.setTimeout(() => {
+      void loadGovernance();
+    }, 0);
     const timer = window.setInterval(() => {
       void loadGovernance();
     }, 7000);
-    return () => window.clearInterval(timer);
-  }, [token]);
+    return () => {
+      window.clearTimeout(initialTimer);
+      window.clearInterval(timer);
+    };
+  }, [loadGovernance, token]);
 
   const review = async (approvalId: number, decision: 'approve' | 'reject') => {
     setBusyId(approvalId);
