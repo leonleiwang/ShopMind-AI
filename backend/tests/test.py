@@ -3,14 +3,19 @@ Agent / Planner / MCP / 向量排序测试
 """
 
 from app.mcp.server import _tool_schemas
+from app.demo.commerce_seed_data import generate_product_catalog, nlu_regression_corpus
 from app.services.chatbot.agents.conversation import ClarificationAgent
 from app.services.chatbot.agents.intent_router import IntentRouterAgent
 from app.services.chatbot.agents.planning import PlanningAgent
+from app.services.chatbot.agents.recommendation import RecommendationAgent
+from app.services.chatbot.chat_service import ChatService
 from app.services.chatbot.knowledge_base import BusinessKnowledgeRetriever
 from app.services.chatbot.prompts import prompt_manager
+from app.services.chatbot.product_resolver import ProductResolver, ShoppingRequestParser
 from app.services.chatbot.tools.product_search import ProductSearchTool
 from app.services.chatbot.tools.registry import ToolRegistry
 from app.services.chatbot.vector_store_manager import VectorStoreManager
+from app.services.hitl_service import ApprovalService
 
 
 def test_keyword_router_handles_negative_order_intent():
@@ -21,10 +26,217 @@ def test_keyword_router_detects_multi_step_plan():
     assert IntentRouterAgent._route_by_keywords("清空购物车，然后把商品4加入购物车，再下单") == "plan"
 
 
+def test_keyword_router_routes_natural_language_cart_selection_to_plan():
+    assert IntentRouterAgent._route_by_keywords("把最便宜的一款蓝牙耳机加进购物车") == "plan"
+
+
+def test_keyword_router_routes_product_checkout_to_plan():
+    assert IntentRouterAgent._route_by_keywords("买一个中延迟的蓝牙耳机") == "plan"
+
+
 def test_planner_builds_clear_cart_add_and_order_plan():
     plan = PlanningAgent._create_deterministic_plan("帮我清空购物车，然后重新把商品4加进去，再下单")
     assert [step["intent"] for step in plan] == ["clear_cart", "cart", "order"]
     assert plan[1]["params"]["product_id"] == 4
+
+
+def test_planner_builds_product_resolution_plan_for_cheapest_product():
+    plan = PlanningAgent._create_deterministic_plan("帮我清空购物车，然后重新把最便宜的一款蓝牙耳机加进去")
+    assert [step["intent"] for step in plan] == ["clear_cart", "resolve_product", "cart"]
+    assert plan[2]["params"]["product_id"] == "FROM_RESOLVED_PRODUCT"
+
+
+def test_planner_completes_product_resolution_before_checkout():
+    plan = PlanningAgent._create_deterministic_plan("推荐一个中延迟的蓝牙耳机并下单")
+    assert [step["intent"] for step in plan] == ["resolve_product", "cart", "order"]
+
+
+def test_planner_treats_buy_product_request_as_resolution_checkout():
+    plan = PlanningAgent._create_deterministic_plan("买一个中延迟的蓝牙耳机")
+    assert [step["intent"] for step in plan] == ["resolve_product", "cart", "order"]
+
+
+def test_planner_keeps_exploratory_recommendation_read_only():
+    request = ShoppingRequestParser.parse("想买个相机，推荐一下")
+    plan = PlanningAgent._create_deterministic_plan("想买个相机，推荐一下")
+    assert request.actions == ["recommend"]
+    assert request.requires_checkout is False
+    assert [step["intent"] for step in plan] == ["resolve_product"]
+
+
+def test_planner_keeps_clear_cart_before_attribute_checkout_flow():
+    plan = PlanningAgent._create_deterministic_plan("清空购物车然后推荐一个中延迟的蓝牙耳机并下单")
+    assert [step["intent"] for step in plan] == ["clear_cart", "resolve_product", "cart", "order"]
+
+
+def test_planner_exact_product_name_checkout_flow():
+    plan = PlanningAgent._create_deterministic_plan("把蓝牙耳机 Pro 加入购物车然后下单")
+    assert [step["intent"] for step in plan] == ["resolve_product", "cart", "order"]
+    assert plan[1]["params"]["product_id"] == "FROM_RESOLVED_PRODUCT"
+
+
+def test_planner_does_not_add_recommended_followup_to_current_checkout():
+    plan = PlanningAgent._create_deterministic_plan("下单这个冰箱然后推荐一款电视")
+    assert [step["intent"] for step in plan] == ["order"]
+
+
+def test_product_resolver_extracts_natural_language_selection_params():
+    params = ProductResolver.extract_params("搜索 300 元以内最便宜的蓝牙耳机并加入购物车")
+    assert params["query"] == "蓝牙耳机"
+    assert params["sort_by"] == "price_asc"
+    assert params["max_price"] == 300
+
+
+def test_shopping_request_parser_extracts_structured_attribute_query():
+    request = ShoppingRequestParser.parse("推荐一个中延迟的蓝牙耳机并下单")
+    assert request.actions == ["recommend", "checkout"]
+    assert request.product_query == "蓝牙耳机"
+    assert request.attribute_filters["latency"] == "medium"
+    assert request.requires_product_resolution is True
+    assert request.requires_checkout is True
+
+
+def test_shopping_request_parser_preserves_exact_product_name():
+    request = ShoppingRequestParser.parse("把蓝牙耳机 Pro 加入购物车")
+    assert request.exact_name_hint == "蓝牙耳机 Pro"
+    assert request.product_query == "蓝牙耳机 Pro"
+
+
+def test_shopping_request_parser_handles_english_shopping_request():
+    request = ShoppingRequestParser.parse("Recommend a low-latency bluetooth earbuds and checkout")
+    assert request.actions == ["recommend", "checkout"]
+    assert request.product_query == "蓝牙耳机"
+    assert request.attribute_filters["latency"] == "low"
+    assert request.requires_checkout is True
+
+
+def test_product_resolver_exact_match_prefers_pro_over_lite():
+    products = [
+        {"id": 4, "name": "蓝牙耳机 lite", "price": 199.99, "attributes": {"latency": "medium"}, "tags": []},
+        {"id": 3, "name": "蓝牙耳机 Pro", "price": 299.99, "attributes": {"latency": "low"}, "tags": []},
+    ]
+    assert ProductResolver._pick_exact_match(products, "蓝牙耳机 Pro")["id"] == 3
+
+
+def test_product_resolver_attribute_filter_selects_medium_latency():
+    products = [
+        {"id": 3, "name": "蓝牙耳机 Pro", "attributes": {"latency": "low"}, "tags": []},
+        {"id": 4, "name": "蓝牙耳机 lite", "attributes": {"latency": "medium"}, "tags": []},
+    ]
+    filtered = ProductResolver._filter_by_attributes(products, {"latency": "medium"})
+    assert [product["id"] for product in filtered] == [4]
+
+
+def test_search_param_rules_understand_new_catalog_categories():
+    camera = ChatService._extract_search_params_by_rules("推荐一个相机")
+    fridge = ChatService._extract_search_params_by_rules("还有什么其他的冰箱选择吗，重新推荐一款")
+    assert camera["keyword"] == "相机"
+    assert fridge["keyword"] == "冰箱"
+
+
+def test_chat_service_detects_alternative_recommendation_request():
+    assert ChatService._wants_alternative_recommendation("\u8fd8\u6709\u4ec0\u4e48\u5176\u4ed6\u7684\u51b0\u7bb1\u9009\u62e9\u5417")
+    assert ChatService._wants_alternative_recommendation("show me another camera")
+
+
+def test_chat_service_detects_context_product_cart_reference():
+    assert ChatService._looks_like_referenced_cart_add("\u628a\u8fd9\u4e2a\u76f8\u673a\u52a0\u5165\u8d2d\u7269\u8f66")
+    assert ChatService._select_referenced_product([{"id": 66, "name": "相机 A"}], 0)["id"] == 66
+
+
+def test_keyword_router_routes_cheapest_previous_products_to_plan():
+    assert IntentRouterAgent._route_by_keywords("将这三个相机中最便宜的一款加入购物车") == "plan"
+
+
+def test_planner_removes_named_cart_item_before_checkout():
+    plan = PlanningAgent._create_deterministic_plan("将购物车里的平板电脑取消购物车，并下单")
+    assert [step["intent"] for step in plan] == ["remove_cart", "order"]
+    assert plan[0]["params"]["keyword"] == "平板电脑"
+
+
+def test_planner_checks_out_already_added_cart_product_without_readding():
+    plan = PlanningAgent._create_deterministic_plan(
+        "把刚刚推荐已经加入购物车的相机下单\n[上下文：用户刚才通过商品卡片加入购物车的是商品 68：JDSelect Pro 微单相机 旅行轻便套机]"
+    )
+    assert [step["intent"] for step in plan] == ["order"]
+    assert plan[0]["params"]["product_id"] == 68
+
+
+def test_shopping_request_parser_understands_gaming_phone_and_tablet():
+    phone = ShoppingRequestParser.parse("推荐一个玩游戏的手机")
+    tablet = ShoppingRequestParser.parse("推荐一个玩游戏的平板电脑")
+    assert phone.product_query == "手机"
+    assert phone.category == "phone"
+    assert phone.attribute_filters["use_cases"] == "gaming"
+    assert tablet.product_query == "平板电脑"
+    assert tablet.category == "tablet"
+    assert tablet.attribute_filters["use_cases"] == "gaming"
+
+
+def test_product_resolver_prioritizes_gaming_named_products():
+    products = [
+        {"id": 1, "name": "Aurora S1 5G 手机 影像旗舰", "price": 1299.0, "attributes": {"use_cases": ["photo"]}, "tags": ["phone"]},
+        {"id": 2, "name": "MideaSample Max 5G 手机 游戏性能版", "price": 1579.0, "attributes": {"use_cases": ["gaming"]}, "tags": ["phone", "gaming"]},
+    ]
+    filtered = ProductResolver._filter_by_attributes(products, {"use_cases": "gaming"})
+    ranked = ProductResolver._prioritize_attribute_matches(filtered, {"use_cases": "gaming"})
+    assert [product["id"] for product in ranked] == [2]
+
+
+async def test_recommendation_agent_excludes_previous_products_for_alternatives():
+    class FakeToolCaller:
+        async def invoke(self, tool_name: str, **kwargs):
+            assert tool_name == "search_products"
+            assert "exclude_ids" not in kwargs
+            return [
+                {"id": 1, "name": "冰箱 A", "price": 1000},
+                {"id": 2, "name": "冰箱 B", "price": 1100},
+                {"id": 3, "name": "冰箱 C", "price": 1200},
+                {"id": 4, "name": "冰箱 D", "price": 1300},
+            ]
+
+    result = await RecommendationAgent(FakeToolCaller()).recommend({"keyword": "冰箱", "exclude_ids": [1, 2]})
+    assert [product["id"] for product in result["products"]] == [3, 4]
+
+
+def test_demo_product_catalog_has_enterprise_scale_and_categories():
+    catalog = generate_product_catalog(120)
+    categories = {item["category"] for item in catalog}
+    assert len(catalog) >= 120
+    assert {"手机数码", "电脑外设", "相机摄影", "家用电器", "小家电"}.issubset(categories)
+    assert all(item["attributes"] and item["tags"] for item in catalog)
+    product_types = {}
+    for item in catalog:
+        product_types.setdefault(item["tags"][0], 0)
+        product_types[item["tags"][0]] += 1
+    assert all(count >= 4 for count in product_types.values())
+
+
+def test_demo_phone_catalog_keeps_gaming_attribute_specific():
+    catalog = generate_product_catalog(120)
+    gaming_phones = [item for item in catalog if "手机" in item["name"] and "游戏" in item["name"]]
+    photo_phones = [item for item in catalog if "手机" in item["name"] and "影像" in item["name"]]
+    assert gaming_phones
+    assert all("gaming" in item["attributes"]["use_cases"] for item in gaming_phones)
+    assert all("gaming" not in item["attributes"]["use_cases"] for item in photo_phones)
+
+
+def test_demo_tablet_catalog_has_gaming_models():
+    catalog = generate_product_catalog(120)
+    gaming_tablets = [item for item in catalog if "平板电脑" in item["name"] and "游戏" in item["name"]]
+    study_tablets = [item for item in catalog if "平板电脑" in item["name"] and "学习" in item["name"]]
+    assert gaming_tablets
+    assert all("gaming" in item["attributes"]["use_cases"] for item in gaming_tablets)
+    assert all("gaming" not in item["attributes"]["use_cases"] for item in study_tablets)
+
+
+def test_nlu_regression_corpus_meets_required_sizes():
+    corpus = nlu_regression_corpus()
+    assert len(corpus["zh_shopping"]) >= 100
+    assert len(corpus["en_shopping"]) >= 100
+    assert len(corpus["vague_requests"]) >= 50
+    assert len(corpus["multi_action_chains"]) >= 50
+    assert len(corpus["edge_cases"]) >= 50
 
 
 def test_product_search_normalizes_common_categories():
@@ -90,3 +302,57 @@ def test_prompt_manager_loads_versioned_template():
     )
     assert prompt.version == "route-evidence-v1"
     assert "推荐耳机" in rendered
+
+
+def test_hitl_order_risk_flags_high_value_orders():
+    risk = ApprovalService.evaluate_order_risk(
+        [{"product_id": 1, "quantity": 1, "unit_price": 699.0}],
+        total=699.0,
+    )
+    assert risk["risk_level"] == "medium"
+    assert risk["approval_channel"] == "chat"
+    assert risk["confirmation_level"] == "double_confirm"
+    assert "order_total_over_500" in risk["risk_reasons"]
+
+
+def test_hitl_order_risk_keeps_premium_camera_in_chat_double_confirm():
+    risk = ApprovalService.evaluate_order_risk(
+        [{"product_id": 66, "quantity": 1, "unit_price": 3299.0}],
+        total=3299.0,
+    )
+    assert risk["risk_level"] == "medium"
+    assert risk["approval_channel"] == "chat"
+    assert risk["confirmation_level"] == "double_confirm"
+    assert "order_total_over_500" in risk["risk_reasons"]
+
+
+def test_hitl_order_risk_keeps_very_expensive_item_in_chat_strong_confirm():
+    risk = ApprovalService.evaluate_order_risk(
+        [{"product_id": 88, "quantity": 1, "unit_price": 12999.0}],
+        total=12999.0,
+    )
+    assert risk["risk_level"] == "high"
+    assert risk["approval_channel"] == "chat"
+    assert risk["confirmation_level"] == "strong_confirm"
+    assert "order_total_over_10000" in risk["risk_reasons"]
+
+
+def test_hitl_order_risk_escalates_abnormal_orders_to_governance():
+    risk = ApprovalService.evaluate_order_risk(
+        [{"product_id": 1, "quantity": 20, "unit_price": 199.0}],
+        total=3980.0,
+    )
+    assert risk["risk_level"] == "high"
+    assert risk["approval_channel"] == "governance"
+    assert risk["confirmation_level"] == "manual_review"
+
+
+def test_hitl_order_risk_keeps_standard_checkout_confirmation():
+    risk = ApprovalService.evaluate_order_risk(
+        [{"product_id": 1, "quantity": 1, "unit_price": 99.0}],
+        total=99.0,
+    )
+    assert risk["risk_level"] == "low"
+    assert risk["approval_channel"] == "chat"
+    assert risk["confirmation_level"] == "standard"
+    assert risk["risk_reasons"] == ["standard_checkout_confirmation"]

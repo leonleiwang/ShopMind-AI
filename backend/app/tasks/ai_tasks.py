@@ -10,6 +10,7 @@ from app.core.llm_gateway import llm_gateway
 from app.db.session import AsyncSessionLocal, engine
 from app.models.order import Order, OrderItem
 from app.models.product import Product
+from app.services.hitl_service import ApprovalService
 
 from .celery_app import celery_app
 
@@ -30,9 +31,9 @@ def _run_async_task(awaitable: Awaitable[T]) -> T:
 
 
 @celery_app.task(bind=True, max_retries=3)
-def generate_product_description(self, product_id: int):
+def generate_product_description(self, product_id: int, user_id: int | None = None):
     """AI 生成商品描述（异步任务）。"""
-    return _run_async_task(_generate_product_description(product_id))
+    return _run_async_task(_generate_product_description(product_id, user_id))
 
 
 @celery_app.task(bind=True, max_retries=3)
@@ -42,18 +43,18 @@ def batch_update_recommendations(self, user_id: int):
 
 
 @celery_app.task(bind=True, max_retries=3)
-def generate_pricing_suggestion(self, product_id: int):
+def generate_pricing_suggestion(self, product_id: int, user_id: int | None = None):
     """AI 动态定价建议（异步任务）。"""
-    return _run_async_task(_generate_pricing_suggestion(product_id))
+    return _run_async_task(_generate_pricing_suggestion(product_id, user_id))
 
 
 @celery_app.task(bind=True, max_retries=3)
-def generate_marketing_copy(self, product_id: int):
+def generate_marketing_copy(self, product_id: int, user_id: int | None = None):
     """AI 个性化营销文案（异步任务）。"""
-    return _run_async_task(_generate_marketing_copy(product_id))
+    return _run_async_task(_generate_marketing_copy(product_id, user_id))
 
 
-async def _generate_product_description(product_id: int) -> dict:
+async def _generate_product_description(product_id: int, user_id: int | None = None) -> dict:
     async with AsyncSessionLocal() as db:
         product = await db.get(Product, product_id)
         if not product:
@@ -78,6 +79,24 @@ async def _generate_product_description(product_id: int) -> dict:
                 description = response.content.strip() or fallback
             except Exception:
                 description = fallback
+
+        # [反思5c-风险点接入HITL] AI 商品描述、定价建议、营销文案已改为 draft-first：先生成审批草稿，不直接发布到商品字段
+        if user_id:
+            approval = await ApprovalService.create_product_draft(
+                db,
+                user_id,
+                product.id,
+                "product_description_update",
+                description,
+                {"source": "ai_generated_description"},
+            )
+            return {
+                "product_id": product.id,
+                "description": description,
+                "approval_required": True,
+                "approval_id": approval.id,
+                "status": approval.status,
+            }
 
         product.description = description
         await db.commit()
@@ -117,7 +136,7 @@ async def _batch_update_recommendations(user_id: int) -> dict:
         return {"user_id": user_id, "recommendations": recommendations}
 
 
-async def _generate_pricing_suggestion(product_id: int) -> dict:
+async def _generate_pricing_suggestion(product_id: int, user_id: int | None = None) -> dict:
     async with AsyncSessionLocal() as db:
         product = await db.get(Product, product_id)
         if not product:
@@ -139,12 +158,24 @@ async def _generate_pricing_suggestion(product_id: int) -> dict:
             "suggested_price": suggested,
             "reason": reason,
         }
-        product.pricing_suggestion = json.dumps(result, ensure_ascii=False)
+        draft_value = json.dumps(result, ensure_ascii=False)
+        if user_id:
+            approval = await ApprovalService.create_product_draft(
+                db,
+                user_id,
+                product.id,
+                "pricing_suggestion_update",
+                draft_value,
+                {"source": "rule_based_pricing"},
+            )
+            return {**result, "approval_required": True, "approval_id": approval.id, "status": approval.status}
+
+        product.pricing_suggestion = draft_value
         await db.commit()
         return result
 
 
-async def _generate_marketing_copy(product_id: int) -> dict:
+async def _generate_marketing_copy(product_id: int, user_id: int | None = None) -> dict:
     async with AsyncSessionLocal() as db:
         product = await db.get(Product, product_id)
         if not product:
@@ -169,6 +200,23 @@ async def _generate_marketing_copy(product_id: int) -> dict:
                 copy = response.content.strip() or fallback
             except Exception:
                 copy = fallback
+
+        if user_id:
+            approval = await ApprovalService.create_product_draft(
+                db,
+                user_id,
+                product.id,
+                "marketing_copy_update",
+                copy,
+                {"source": "ai_generated_marketing_copy"},
+            )
+            return {
+                "product_id": product.id,
+                "marketing_copy": copy,
+                "approval_required": True,
+                "approval_id": approval.id,
+                "status": approval.status,
+            }
 
         product.marketing_copy = copy
         await db.commit()

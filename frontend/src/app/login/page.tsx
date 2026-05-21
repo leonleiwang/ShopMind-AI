@@ -3,6 +3,7 @@
 
 import { api } from '@/services/api';
 import { useAuthStore } from '@/store/auth';
+import { roleHome } from '@/services/rbac';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
@@ -13,6 +14,7 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const setToken = useAuthStore((s) => s.setToken);
+  const loadUser = useAuthStore((s) => s.loadUser);
   const router = useRouter();
 
   const handleLogin = async () => {
@@ -24,7 +26,9 @@ export default function LoginPage() {
         password,
       });
       setToken(res.data.access_token);
-      router.push('/chat');
+      const user = await loadUser();
+      const next = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('next') : null;
+      router.push(next || roleHome[user?.role ?? 'shopper']);
     } catch {
       setError('登录失败，请确认账号、密码和后端服务状态。');
     } finally {

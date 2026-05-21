@@ -1,6 +1,6 @@
 // src/hooks/useChatStream.ts SSE 连接 Hook
 import { SSE } from 'sse.js';
-import { useChatStore } from '@/store/chat';
+import { ChatApproval, ChatProduct, useChatStore } from '@/store/chat';
 import { API_BASE_URL } from '@/services/api';
 
 function toDisplayText(value: unknown): string {
@@ -26,12 +26,21 @@ export function useChatStream() {
   const appendStep = useChatStore((s) => s.appendStep);
   const setStreaming = useChatStore((s) => s.setStreaming);
   const setError = useChatStore((s) => s.setError);
+  const lastAddedProduct = useChatStore((s) => s.lastAddedProduct);
 
   const sendMessage = (message: string, token: string) => {
     setError('');
     setStreaming(true);
     addMessage({ role: 'user', content: message });
     addMessage({ role: 'assistant', content: '', steps: [] });
+    const shouldAttachLastAdded =
+      Boolean(lastAddedProduct) &&
+      /刚刚|刚才|已加入购物车|已经加入购物车|加入购物车的|这个|这款/.test(message) &&
+      /下单|结算|购买|加入购物车|加购/.test(message);
+    const requestMessage =
+      shouldAttachLastAdded && lastAddedProduct
+        ? `${message}\n[上下文：用户刚才通过商品卡片加入购物车的是商品 ${lastAddedProduct.id}：${lastAddedProduct.name}]`
+        : message;
 
     const source = new SSE(`${API_BASE_URL}/chat/stream`, {
       headers: {
@@ -39,7 +48,7 @@ export function useChatStream() {
         Authorization: `Bearer ${token}`,
       },
       method: 'POST',
-      payload: JSON.stringify({ message }),
+      payload: JSON.stringify({ message: requestMessage }),
     });
 
     source.addEventListener('intent', (e: MessageEvent<string>) => {
@@ -64,7 +73,11 @@ export function useChatStream() {
 
     source.addEventListener('final', (e: MessageEvent<string>) => {
       const data = parseEventData(e);
-      updateLastAssistant(toDisplayText(data.content));
+      updateLastAssistant(
+        toDisplayText(data.content),
+        data.approval as ChatApproval | undefined,
+        data.products as ChatProduct[] | undefined,
+      );
       setStreaming(false);
       source.close();
     });

@@ -108,9 +108,9 @@ async def generate_description(
     product_id: int,
     current_user: User = Depends(get_current_user)
 ):
-    payload = await _run_ai_operation(generate_product_description, _generate_product_description, product_id)
+    payload = await _run_ai_operation(generate_product_description, _generate_product_description, product_id, current_user.id)
     return {
-        "message": "Description generation submitted",
+        "message": "Description draft submitted for approval",
         "product_id": product_id,
         **payload,
     }
@@ -121,9 +121,9 @@ async def pricing_suggestion(
     product_id: int,
     current_user: User = Depends(get_current_user)
 ):
-    payload = await _run_ai_operation(generate_pricing_suggestion, _generate_pricing_suggestion, product_id)
+    payload = await _run_ai_operation(generate_pricing_suggestion, _generate_pricing_suggestion, product_id, current_user.id)
     return {
-        "message": "Pricing suggestion submitted",
+        "message": "Pricing suggestion draft submitted for approval",
         "product_id": product_id,
         **payload,
     }
@@ -134,9 +134,9 @@ async def marketing_copy(
     product_id: int,
     current_user: User = Depends(get_current_user)
 ):
-    payload = await _run_ai_operation(generate_marketing_copy, _generate_marketing_copy, product_id)
+    payload = await _run_ai_operation(generate_marketing_copy, _generate_marketing_copy, product_id, current_user.id)
     return {
-        "message": "Marketing copy submitted",
+        "message": "Marketing copy draft submitted for approval",
         "product_id": product_id,
         **payload,
     }

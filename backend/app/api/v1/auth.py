@@ -19,7 +19,7 @@ router = APIRouter()
 @router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 async def register(user_in: UserCreate, db: AsyncSession = Depends(get_db)):
     try:
-        user = await UserService.create_user(db, user_in.email, user_in.password, user_in.full_name)
+        user = await UserService.create_user(db, user_in.email, user_in.password, user_in.full_name, user_in.role)
         return user
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e

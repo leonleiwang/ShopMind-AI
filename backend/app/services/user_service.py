@@ -12,7 +12,7 @@ from app.models.user import User
 
 class UserService:
     @staticmethod
-    async def create_user(db: AsyncSession, email: str, password: str, full_name: str = "") -> User:
+    async def create_user(db: AsyncSession, email: str, password: str, full_name: str = "", role: str = "shopper") -> User:
         # 检查邮箱是否已注册
         result = await db.execute(select(User).where(User.email == email))
         existing = result.scalar_one_or_none()
@@ -22,7 +22,8 @@ class UserService:
         user = User(
             email=email,
             hashed_password=get_password_hash(password),
-            full_name=full_name
+            full_name=full_name,
+            role=UserService.normalize_role(role),
         )
         db.add(user)
         await db.commit()
@@ -38,3 +39,14 @@ class UserService:
         if not user.is_active:
             return None
         return user
+
+    @staticmethod
+    def normalize_role(role: str | None) -> str:
+        normalized = (role or "shopper").strip().lower()
+        aliases = {
+            "operator": "merchant",
+            "agentops": "admin",
+            "developer": "admin",
+        }
+        normalized = aliases.get(normalized, normalized)
+        return normalized if normalized in {"shopper", "merchant", "support", "admin"} else "shopper"

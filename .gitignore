@@ -8,6 +8,9 @@ __pycache__/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
 .codex/
 .vscode/
 .venv/
@@ -15,17 +18,29 @@ venv/
 
 node_modules/
 .next/
+.turbo/
 out/
 dist/
 build/
+coverage/
+playwright-report/
+test-results/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+*.log
+logs/
 
 chroma_db/
 milvus_data/
 postgres_data/
 redis_data/
+*.db
+*.sqlite
+*.sqlite3
+uploads/
+storage/
+docker-compose.override.yml
 
 .DS_Store
 Thumbs.db

@@ -14,7 +14,9 @@ from app.api.deps import get_current_user
 from app.core.config import settings
 from app.db.session import AsyncSessionLocal, get_db
 from app.models.user import User
+from app.schemas.hitl import ApprovalResponse
 from app.schemas.order import CartItemCreate, CartItemResponse, OrderResponse, OrderStatusUpdate
+from app.services.hitl_service import ApprovalService
 from app.services.order_service import CartService, OrderService
 
 router = APIRouter()
@@ -87,7 +89,19 @@ async def clear_cart(
     await CartService.clear_cart(db, current_user.id)
     return {"message": "Cart cleared"}
 
-# ---------- 订单 ----------
+# [反思5c-风险点接入HITL] 订单审批入口：下单前先生成审批请求，确认后才真正创建订单；订单状态更新后通过 WebSocket 广播给用户
+@router.post("/checkout-approval", response_model=ApprovalResponse, status_code=status.HTTP_202_ACCEPTED)
+async def request_checkout_approval(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    try:
+        approval = await ApprovalService.create_order_approval(db, current_user.id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    return approval
+
+
 @router.post("/", response_model=OrderResponse, status_code=status.HTTP_201_CREATED)
 async def place_order(
     db: AsyncSession = Depends(get_db),

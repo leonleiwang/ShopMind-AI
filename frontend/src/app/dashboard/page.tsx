@@ -1,7 +1,10 @@
-﻿// 后台仪表盘 / Agent 可观测性：展示 intent、tool、SSE、latency、WebSocket、AI 运营任务
+// 管理员 / 工程师 AgentOps 仪表盘：只展示系统观测与 AI 运营任务，不展示买家私域购物车。
 'use client';
 
+import RoleGuard from '@/components/auth/RoleGuard';
+import RoleNav from '@/components/auth/RoleNav';
 import { api, getWebSocketUrl } from '@/services/api';
+import { useAuthStore } from '@/store/auth';
 import Link from 'next/link';
 import { ReactNode, useEffect, useMemo, useState } from 'react';
 
@@ -45,17 +48,27 @@ const emptyMetrics: Metrics = {
   recent_events: [],
 };
 
-const dashboardCategories = ['Agent 路由', 'MCP 工具', 'LLM 网关', 'SSE', '订单状态', 'AI 运营'];
+const dashboardCategories = ['Agent 路由', 'MCP 工具', 'LLM 网关', 'SSE 流', '订单 WebSocket', 'AI 运营任务'];
+const intentKeys = ['search', 'recommend', 'cart', 'order', 'plan', 'compare'];
+const toolKeys = ['search_products', 'compare_products', 'add_to_cart', 'remove_from_cart', 'clear_cart', 'place_order'];
 
 export default function OpsDashboardPage() {
+  return (
+    <RoleGuard allowed={['admin']}>
+      <OpsDashboardContent />
+    </RoleGuard>
+  );
+}
+
+function OpsDashboardContent() {
   const [metrics, setMetrics] = useState<Metrics>(emptyMetrics);
   const [products, setProducts] = useState<Product[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [wsEvents, setWsEvents] = useState<string[]>([]);
   const [taskEvents, setTaskEvents] = useState<string[]>([]);
   const [error, setError] = useState('');
+  const token = useAuthStore((s) => s.token);
 
-  const latestOrderId = orders[0]?.id ?? null;
   const totalToolCalls = useMemo(
     () => Object.values(metrics.tool_counts).reduce((sum, value) => sum + value, 0),
     [metrics.tool_counts],
@@ -68,6 +81,9 @@ export default function OpsDashboardPage() {
     () => Object.values(metrics.tool_error_counts).reduce((sum, value) => sum + value, 0),
     [metrics.tool_error_counts],
   );
+  const latestOrderId = orders[0]?.id ?? null;
+  const intentCounts = useMemo(() => withDefaultKeys(metrics.intent_counts, intentKeys), [metrics.intent_counts]);
+  const toolCounts = useMemo(() => withDefaultKeys(metrics.tool_counts, toolKeys), [metrics.tool_counts]);
 
   const loadDashboard = async () => {
     try {
@@ -81,7 +97,7 @@ export default function OpsDashboardPage() {
       setOrders(ordersRes.data);
       setError('');
     } catch {
-      setError('仪表盘数据加载失败：请确认已登录且后端服务可访问。');
+      setError('工程仪表盘数据加载失败：请确认已使用管理员账号登录，并且后端服务可访问。');
     }
   };
 
@@ -99,8 +115,7 @@ export default function OpsDashboardPage() {
   }, []);
 
   useEffect(() => {
-    if (!latestOrderId || typeof window === 'undefined') return;
-    const token = localStorage.getItem('token');
+    if (!latestOrderId || !token || typeof window === 'undefined') return;
     const socket = new WebSocket(getWebSocketUrl(`/orders/ws/${latestOrderId}`, token));
 
     socket.onopen = () => {
@@ -109,18 +124,18 @@ export default function OpsDashboardPage() {
     socket.onmessage = (event) => {
       setWsEvents((current) => {
         if (current[0] === event.data) return current;
-        return [event.data, ...current].slice(0, 5);
+        return [event.data, ...current].slice(0, 6);
       });
     };
     socket.onerror = () => {
       setWsEvents((current) => {
-        const message = 'WebSocket 连接失败或无权限';
+        const message = '订单 WebSocket 连接失败或暂无可监听订单';
         if (current[0] === message) return current;
-        return [message, ...current].slice(0, 5);
+        return [message, ...current].slice(0, 6);
       });
     };
     return () => socket.close();
-  }, [latestOrderId]);
+  }, [latestOrderId, token]);
 
   const runTask = async (task: () => Promise<string>) => {
     try {
@@ -138,8 +153,8 @@ export default function OpsDashboardPage() {
       await loadDashboard();
       const description = response.data.result?.description;
       return description
-        ? `商品 ${productId} 描述已生成: ${description}`
-        : `商品 ${productId} 描述生成任务已入队: ${response.data.task_id}。Worker 完成后刷新可见。`;
+        ? `商品 ${productId} 描述已生成：${description}`
+        : `商品 ${productId} 描述生成任务已入队：${response.data.task_id}。Worker 完成后刷新可见。`;
     });
 
   const queuePricing = (productId: number) =>
@@ -148,8 +163,8 @@ export default function OpsDashboardPage() {
       await loadDashboard();
       const result = response.data.result;
       return result?.suggested_price
-        ? `商品 ${productId} 建议价 ¥${result.suggested_price}: ${result.reason}`
-        : `商品 ${productId} 动态定价任务已入队: ${response.data.task_id}。Worker 完成后刷新可见。`;
+        ? `商品 ${productId} 建议价 ¥${result.suggested_price}：${result.reason}`
+        : `商品 ${productId} 动态定价任务已入队：${response.data.task_id}。Worker 完成后刷新可见。`;
     });
 
   const queueMarketing = (productId: number) =>
@@ -158,14 +173,14 @@ export default function OpsDashboardPage() {
       await loadDashboard();
       const copy = response.data.result?.marketing_copy;
       return copy
-        ? `商品 ${productId} 文案已生成: ${copy}`
-        : `商品 ${productId} 营销文案任务已入队: ${response.data.task_id}。Worker 完成后刷新可见。`;
+        ? `商品 ${productId} 文案已生成：${copy}`
+        : `商品 ${productId} 营销文案任务已入队：${response.data.task_id}。Worker 完成后刷新可见。`;
     });
 
   const refreshRecommendations = () =>
     runTask(async () => {
       const response = await api.post('/products/recommendations/batch');
-      return `个性化推荐刷新任务: ${response.data.task_id}`;
+      return `个性化推荐刷新任务：${response.data.task_id}`;
     });
 
   return (
@@ -178,19 +193,22 @@ export default function OpsDashboardPage() {
             </span>
             <span>
               <span className="block font-semibold">ShopMind AI</span>
-              <span className="block text-xs text-sky-100/75">Operations dashboard</span>
+              <span className="block text-xs text-sky-100/75">管理员 / 工程观测台</span>
             </span>
           </Link>
           <nav className="flex items-center gap-2 text-sm">
-            <Link className="hidden rounded-lg px-3 py-2 text-sky-50 hover:bg-white/10 md:inline" href="/chat">
-              AI 客服
+            <Link className="hidden rounded-lg px-3 py-2 text-sky-50 hover:bg-white/10 md:inline" href="/admin/dashboard">
+              运营后台
             </Link>
-            <Link className="hidden rounded-lg px-3 py-2 text-sky-50 hover:bg-white/10 md:inline" href="/dashboard">
-              我的订单
+            <Link className="hidden rounded-lg px-3 py-2 text-sky-50 hover:bg-white/10 md:inline" href="/governance">
+              风控治理
             </Link>
-            <Link className="rounded-lg bg-[#ffca45] px-3 py-2 font-semibold text-[#102033] hover:bg-[#ffd873]" href="/chat">
-              返回购物
-            </Link>
+            <button
+              className="rounded-lg bg-[#ffca45] px-3 py-2 font-semibold text-[#102033] hover:bg-[#ffd873]"
+              onClick={loadDashboard}
+            >
+              刷新数据
+            </button>
           </nav>
         </div>
         <div className="border-t border-white/10 bg-[#1d6389]">
@@ -203,33 +221,16 @@ export default function OpsDashboardPage() {
           </div>
         </div>
       </header>
+      <RoleNav />
 
       <div className="mx-auto flex max-w-7xl flex-col gap-5 px-5 py-6 lg:px-8">
-        <header className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <div>
-              <p className="text-xs uppercase tracking-[0.28em] text-slate-500">Operations cockpit</p>
-              <h1 className="mt-2 text-3xl font-semibold tracking-tight">ShopMind AI 仪表盘</h1>
-              <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
-                统一观察 Agent 路由、MCP 工具、LLM 网关、SSE 事件和订单 WebSocket 状态。
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Link
-                className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-[#123b5d] transition hover:border-[#9bd7e7] hover:bg-[#f3fbfd]"
-                href="/chat"
-              >
-                Chat
-              </Link>
-              <button
-                className="rounded-lg bg-[#1d6389] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#123b5d]"
-                onClick={loadDashboard}
-              >
-                刷新数据
-              </button>
-            </div>
-          </div>
-        </header>
+        <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+          <p className="text-xs uppercase tracking-[0.28em] text-slate-500">AgentOps cockpit</p>
+          <h1 className="mt-2 text-3xl font-semibold tracking-tight">ShopMind AI 工程观测仪表盘</h1>
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">
+            这里面向管理员、AgentOps 和开发者，用来观察 Agent 路由、MCP工具调用、LLM 网关、SSE 事件、订单WebSocket状态和 AI 运营任务。
+          </p>
+        </section>
 
         {error ? (
           <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
@@ -238,40 +239,52 @@ export default function OpsDashboardPage() {
         ) : null}
 
         <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-          <MetricCard label="Uptime" value={formatUptime(metrics.uptime_seconds)} caption="API process" />
-          <MetricCard label="Tool calls" value={totalToolCalls.toString()} caption={`${totalErrors} errors`} />
-          <MetricCard label="LLM events" value={totalLlmEvents.toString()} caption="ok / error / degraded" />
-          <MetricCard label="Avg latency" value={`${metrics.avg_tool_latency_ms}ms`} caption="tool + llm samples" />
-          <MetricCard label="Orders" value={orders.length.toString()} caption={latestOrderId ? `watching #${latestOrderId}` : 'no active order'} />
+          <MetricCard label="运行时长" value={formatUptime(metrics.uptime_seconds)} caption="API 进程" />
+          <MetricCard label="工具调用" value={totalToolCalls.toString()} caption={`${totalErrors} 个异常`} />
+          <MetricCard label="LLM 事件" value={totalLlmEvents.toString()} caption="成功 / 降级 / 失败" />
+          <MetricCard label="平均延迟" value={`${metrics.avg_tool_latency_ms}ms`} caption="工具与 LLM 样本" />
+          <MetricCard label="商品样本" value={products.length.toString()} caption="AI 运营任务候选" />
         </section>
 
         <section className="grid gap-5 xl:grid-cols-[1.05fr_0.95fr]">
-          <Panel title="Agent routing" eyebrow="intent / evidence">
-            <KeyValueList data={metrics.intent_counts} empty="暂无意图数据，先在聊天页发起一次对话。" />
+          <Panel title="Order WebSocket" eyebrow="订单实时状态">
+            <EventList
+              events={wsEvents}
+              empty={latestOrderId ? `正在监听订单 #${latestOrderId}。` : '暂无可监听订单。创建订单后这里会显示实时快照。'}
+              tone="cyan"
+            />
           </Panel>
-          <Panel title="MCP tools" eyebrow="request-scoped calls">
-            <KeyValueList data={metrics.tool_counts} empty="暂无工具调用。" />
+          <Panel title="最近系统事件" eyebrow="observability">
+            <div className="max-h-80 space-y-2 overflow-y-auto pr-1">
+              {metrics.recent_events.length ? (
+                metrics.recent_events.slice(0, 8).map((event, index) => <EventCard key={index} event={event} />)
+              ) : (
+                <EmptyBox title="暂无事件" body="进行一次聊天或工具调用后，这里会出现最近事件。" />
+              )}
+            </div>
           </Panel>
         </section>
 
-        <section className="grid gap-5 xl:grid-cols-3">
-          <Panel title="LLM gateway" eyebrow="timeout / retry / fallback">
+        <section className="grid gap-5 xl:grid-cols-[1.05fr_0.95fr]">
+          <Panel title="Agent Routing" eyebrow="intent / evidence">
+            <KeyValueList data={intentCounts} empty="暂无意图数据，先在聊天页发起一次对话。" />
+          </Panel>
+          <Panel title="MCP 工具调用" eyebrow="request-scoped tools">
+            <KeyValueList data={toolCounts} empty="暂无工具调用。" />
+          </Panel>
+        </section>
+
+        <section className="grid gap-5 xl:grid-cols-2">
+          <Panel title="LLM 网关" eyebrow="timeout / retry / fallback">
             <KeyValueList data={metrics.llm_counts ?? {}} empty="暂无 LLM 网关事件。" />
           </Panel>
-          <Panel title="SSE stream" eyebrow="frontend process events">
+          <Panel title="SSE 事件流" eyebrow="frontend stream">
             <KeyValueList data={metrics.sse_event_counts} empty="暂无 SSE 事件。" />
-          </Panel>
-          <Panel title="Order WebSocket" eyebrow="latest snapshot">
-            <EventList
-              events={wsEvents}
-              empty="暂无订单快照。创建订单后这里会显示实时状态。"
-              tone="cyan"
-            />
           </Panel>
         </section>
 
         <section className="grid gap-5 xl:grid-cols-[1.35fr_0.65fr]">
-          <Panel title="商品运营任务" eyebrow="AI operations">
+          <Panel title="AI 商品运营任务" eyebrow="admin tools">
             {products.length ? (
               <div className="grid gap-3">
                 {products.map((product) => (
@@ -285,7 +298,7 @@ export default function OpsDashboardPage() {
                 ))}
               </div>
             ) : (
-              <EmptyBox title="暂无商品" body="先在 Swagger 或后台接口创建商品，再展示运营任务。" />
+              <EmptyBox title="暂无商品" body="先运行 seed 脚本或在后台创建商品，再展示运营任务。" />
             )}
 
             <div className="mt-4 flex flex-wrap items-center gap-3">
@@ -297,24 +310,10 @@ export default function OpsDashboardPage() {
               </button>
               <span className="text-xs text-slate-500">Celery eager 或 worker 均可演示</span>
             </div>
-
-            {taskEvents.length ? (
-              <div className="mt-4">
-                <EventList events={taskEvents} empty="" tone="emerald" />
-              </div>
-            ) : null}
           </Panel>
 
-          <Panel title="最近事件" eyebrow="observability">
-            <div className="max-h-[520px] space-y-2 overflow-y-auto pr-1">
-              {metrics.recent_events.length ? (
-                metrics.recent_events.slice(0, 10).map((event, index) => (
-                  <EventCard key={index} event={event} />
-                ))
-              ) : (
-                <EmptyBox title="暂无事件" body="进行一次聊天或工具调用后，这里会出现最近事件。" />
-              )}
-            </div>
+          <Panel title="任务回执" eyebrow="latest admin actions">
+            <EventList events={taskEvents} empty="暂无任务回执。点击左侧 AI 运营任务后会显示结果。" tone="emerald" />
           </Panel>
         </section>
       </div>
@@ -335,11 +334,9 @@ function MetricCard({ label, value, caption }: { label: string; value: string; c
 function Panel({ title, eyebrow, children }: { title: string; eyebrow: string; children: ReactNode }) {
   return (
     <section className="rounded-lg border border-slate-200 bg-white p-5">
-      <div className="mb-4 flex items-center justify-between gap-3">
-        <div>
-          <p className="text-xs uppercase tracking-[0.2em] text-slate-500">{eyebrow}</p>
-          <h2 className="mt-1 text-lg font-semibold text-slate-900">{title}</h2>
-        </div>
+      <div className="mb-4">
+        <p className="text-xs uppercase tracking-[0.2em] text-slate-500">{eyebrow}</p>
+        <h2 className="mt-1 text-lg font-semibold text-slate-900">{title}</h2>
       </div>
       {children}
     </section>
@@ -350,7 +347,7 @@ function KeyValueList({ data, empty }: { data: Record<string, number>; empty: st
   const entries = Object.entries(data).sort((a, b) => b[1] - a[1]);
   const max = Math.max(...entries.map(([, value]) => value), 1);
 
-  if (!entries.length) return <EmptyBox title="Empty state" body={empty} />;
+  if (!entries.length) return <EmptyBox title="暂无数据" body={empty} />;
   return (
     <div className="space-y-3">
       {entries.map(([key, value]) => (
@@ -394,12 +391,10 @@ function ProductOpsRow({
           <span className="rounded-lg bg-[#fff7dd] px-2.5 py-1 font-semibold text-[#7a4b00]">¥{product.price}</span>
           {product.pricing_suggestion ? (
             <span className="rounded-lg bg-emerald-50 px-2.5 py-1 text-emerald-700">
-              定价: {formatPricing(product.pricing_suggestion)}
+              定价：{formatPricing(product.pricing_suggestion)}
             </span>
           ) : null}
-          {product.marketing_copy ? (
-            <span className="rounded-lg bg-[#e8f6fa] px-2.5 py-1 text-[#12445f]">文案已生成</span>
-          ) : null}
+          {product.marketing_copy ? <span className="rounded-lg bg-[#e8f6fa] px-2.5 py-1 text-[#12445f]">文案已生成</span> : null}
         </div>
       </div>
       <div className="flex flex-wrap items-center gap-2 lg:justify-end">
@@ -423,7 +418,7 @@ function TaskButton({ children, onClick }: { children: ReactNode; onClick: () =>
 }
 
 function EventList({ events, empty, tone }: { events: string[]; empty: string; tone: 'cyan' | 'emerald' }) {
-  if (!events.length) return <EmptyBox title="No events" body={empty} />;
+  if (!events.length) return <EmptyBox title="暂无事件" body={empty} />;
   const color = tone === 'cyan' ? 'text-[#12445f] border-[#cfe7ef]' : 'text-emerald-700 border-emerald-200';
   return (
     <div className="max-h-64 space-y-2 overflow-y-auto pr-1">
@@ -447,7 +442,7 @@ function EventCard({ event }: { event: Record<string, unknown> }) {
       <div className="flex items-center justify-between gap-2">
         <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700">{type}</span>
         {typeof ok === 'boolean' ? (
-          <span className={ok ? 'text-xs text-emerald-700' : 'text-xs text-amber-700'}>{ok ? 'ok' : 'attention'}</span>
+          <span className={ok ? 'text-xs text-emerald-700' : 'text-xs text-amber-700'}>{ok ? '正常' : '注意'}</span>
         ) : null}
       </div>
       <pre className="mt-3 whitespace-pre-wrap break-words text-xs leading-5 text-slate-500">
@@ -463,6 +458,16 @@ function EmptyBox({ title, body }: { title: string; body: string }) {
       <p className="text-sm font-medium text-slate-700">{title}</p>
       <p className="mt-1 text-sm leading-6 text-slate-500">{body}</p>
     </div>
+  );
+}
+
+function withDefaultKeys(data: Record<string, number>, keys: string[]) {
+  return keys.reduce<Record<string, number>>(
+    (result, key) => {
+      result[key] = data[key] ?? 0;
+      return result;
+    },
+    { ...data },
   );
 }
 

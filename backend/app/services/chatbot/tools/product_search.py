@@ -93,5 +93,9 @@ class ProductSearchTool:
             "price": p.price,
             "category": p.category,
             "brand": p.brand,
-            "description": (p.description or "")[:200]
+            "stock": p.stock,
+            "image_url": p.image_url,
+            "description": (p.description or "")[:200],
+            "attributes": p.attributes or {},
+            "tags": p.tags or [],
         }

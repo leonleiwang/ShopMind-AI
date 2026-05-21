@@ -1,6 +1,8 @@
 // Chat 主页面：电商浅色购物体验 + SSE 过程可视化
 'use client';
 
+import RoleGuard from '@/components/auth/RoleGuard';
+import RoleNav from '@/components/auth/RoleNav';
 import ChatMessageBubble from '@/components/chat/ChatMessageBubble';
 import { useChatStream } from '@/hooks/useChatStream';
 import { useAuthStore } from '@/store/auth';
@@ -19,6 +21,14 @@ const quickPrompts = [
 const categories = ['低延迟耳机', '手机数码', '电脑外设', '订单售后', '购物车', 'AI 推荐'];
 
 export default function ChatPage() {
+  return (
+    <RoleGuard allowed={['shopper']}>
+      <ChatContent />
+    </RoleGuard>
+  );
+}
+
+function ChatContent() {
   const [input, setInput] = useState('');
   const messages = useChatStore((s) => s.messages);
   const isStreaming = useChatStore((s) => s.isStreaming);
@@ -61,8 +71,8 @@ export default function ChatPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#f4f7fb] text-slate-900">
-      <header className="bg-[#123b5d] text-white shadow-sm">
+    <main className="flex h-screen flex-col overflow-hidden bg-[#f4f7fb] text-slate-900">
+      <header className="shrink-0 bg-[#123b5d] text-white shadow-sm">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3 lg:px-6">
           <Link className="flex items-center gap-3" href="/">
             <span className="grid h-10 w-10 place-items-center rounded-lg bg-[#ffca45] text-sm font-black text-[#102033]">
@@ -74,13 +84,16 @@ export default function ChatPage() {
             </span>
           </Link>
           <nav className="flex items-center gap-2 text-sm">
-            <Link className="hidden rounded-lg px-3 py-2 text-sky-50 hover:bg-white/10 md:inline" href="/dashboard">
-              我的运营台
+            <Link className="hidden rounded-lg px-3 py-2 text-sky-50 hover:bg-white/10 md:inline" href="/shop/products">
+              商品
             </Link>
-            <Link className="hidden rounded-lg px-3 py-2 text-sky-50 hover:bg-white/10 md:inline" href="/dashboard">
+            <Link className="hidden rounded-lg px-3 py-2 text-sky-50 hover:bg-white/10 md:inline" href="/shop/cart">
+              购物车
+            </Link>
+            <Link className="hidden rounded-lg px-3 py-2 text-sky-50 hover:bg-white/10 md:inline" href="/shop/orders">
               我的订单
             </Link>
-            <Link className="rounded-lg bg-[#ffca45] px-3 py-2 font-semibold text-[#102033] hover:bg-[#ffd873]" href="/dashboard">
+            <Link className="rounded-lg bg-[#ffca45] px-3 py-2 font-semibold text-[#102033] hover:bg-[#ffd873]" href="/shop/cart">
               购物车 / 订单
             </Link>
           </nav>
@@ -100,9 +113,12 @@ export default function ChatPage() {
           </div>
         </div>
       </header>
+      <div className="shrink-0">
+        <RoleNav />
+      </div>
 
-      <div className="mx-auto grid max-w-7xl gap-5 px-4 py-5 lg:grid-cols-[292px_1fr] lg:px-6">
-        <aside className="hidden rounded-lg border border-slate-200 bg-white p-5 shadow-sm lg:block">
+      <div className="mx-auto grid min-h-0 w-full max-w-7xl flex-1 gap-4 px-4 py-3 lg:grid-cols-[292px_1fr] lg:px-6">
+        <aside className="hidden overflow-y-auto rounded-lg border border-slate-200 bg-white p-5 shadow-sm lg:block">
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#1d6389]">Demo flow</p>
           <h2 className="mt-2 text-lg font-semibold">购物者视角演示</h2>
           <p className="mt-2 text-sm leading-6 text-slate-500">
@@ -123,8 +139,8 @@ export default function ChatPage() {
           </div>
         </aside>
 
-        <section className="flex min-h-[calc(100vh-156px)] flex-col overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
-          <header className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-white px-5 py-4">
+        <section className="flex min-h-0 flex-col overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+          <header className="shrink-0 flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-white px-5 py-3">
             <div>
               <p className="text-xs uppercase tracking-[0.2em] text-[#1d6389]">Shop assistant</p>
               <h1 className="mt-1 text-xl font-semibold">对话式购物助手</h1>
@@ -148,7 +164,7 @@ export default function ChatPage() {
             </div>
           ) : null}
 
-          <div className="flex-1 overflow-y-auto bg-[#fbfcfe] px-5 py-5">
+          <div className="min-h-0 flex-1 overflow-y-auto bg-[#fbfcfe] px-5 py-4">
             {messages.length ? (
               <div className="space-y-4">
                 {messages.map((msg, i) => (
@@ -160,7 +176,7 @@ export default function ChatPage() {
             )}
           </div>
 
-          <footer className="border-t border-slate-200 bg-white p-4">
+          <footer className="shrink-0 border-t border-slate-200 bg-white p-3">
             <div className="flex flex-col gap-3 md:flex-row">
               <input
                 className="min-h-12 flex-1 rounded-lg border border-slate-200 bg-white px-4 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-[#1d6389] focus:ring-4 focus:ring-[#dff3f8]"

@@ -18,6 +18,7 @@ class CartItemResponse(BaseModel):
     product_name: str = ""
     quantity: int
     unit_price: float = 0.0
+    line_total: float = 0.0
 
 class OrderItemResponse(BaseModel):
     id: int

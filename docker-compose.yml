@@ -24,6 +24,28 @@ services:
       milvus:
         condition: service_started
 
+  worker:
+    build: ./backend
+    command: celery -A app.tasks.celery_app:celery_app worker --loglevel=info --pool=solo
+    environment:
+      - ENVIRONMENT=production
+      - DATABASE_URL=postgresql+asyncpg://shopmind:shopmind@db:5432/shopmind
+      - REDIS_URL=redis://redis:6379/0
+      - SECRET_KEY=change-me-in-real-prod
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - DASHSCOPE_API_KEY=${DASHSCOPE_API_KEY}
+      - BACKEND_CORS_ORIGINS=["http://localhost:3000","http://127.0.0.1:3000"]
+      - VECTOR_STORE_TYPE=milvus
+      - MILVUS_HOST=milvus
+      - MILVUS_PORT=19530
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      milvus:
+        condition: service_started
+
   frontend:
     build:
       context: ./frontend

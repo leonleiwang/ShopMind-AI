@@ -42,6 +42,11 @@ class CartOrderAgent:
                 result = await self.tool_caller.invoke("place_order")
                 if "error" in result:
                     return result["error"]
+                if result.get("approval_required"):
+                    return {
+                        "content": self._format_order_approval(result),
+                        "approval": self._approval_payload(result),
+                    }
                 return f"下单成功！订单号 {result['order_id']}，总金额 ¥{result['total_amount']}。"
             else:
                 # 查询订单
@@ -56,6 +61,41 @@ class CartOrderAgent:
                     return result["error"]
                 return f"订单 {result['order_id']} 状态: {result['status']}，总金额 ¥{result['total_amount']}。"
         return "无法处理你的请求。"
+
+    @staticmethod
+    def _format_order_approval(result: dict) -> str:
+        risk_reasons = ", ".join(result.get("risk_reasons") or [])
+        if result.get("approval_channel") == "governance":
+            return (
+                "这个订单触发了异常风险规则，已提交到 Governance 后台人工审核。\n"
+                f"Approval ID: {result.get('approval_id')}\n"
+                f"Risk level: {result.get('risk_level')}\n"
+                f"Risk reasons: {risk_reasons}\n"
+                f"{result.get('summary')}"
+            )
+        title = "高金额订单需要再次确认" if result.get("confirmation_level") == "double_confirm" else "请确认订单"
+        return (
+            f"{title}\n"
+            f"Approval ID: {result.get('approval_id')}\n"
+            f"Risk level: {result.get('risk_level')}\n"
+            f"Risk reasons: {risk_reasons}\n"
+            f"{result.get('summary')}\n"
+            "确认无误后可在当前 Chat 页面完成下单，或取消本次订单草稿。"
+        )
+
+    @staticmethod
+    def _approval_payload(result: dict) -> dict:
+        return {
+            "id": result.get("approval_id"),
+            "action_type": "place_order",
+            "status": result.get("status"),
+            "risk_level": result.get("risk_level"),
+            "risk_reasons": result.get("risk_reasons") or [],
+            "approval_channel": result.get("approval_channel"),
+            "confirmation_level": result.get("confirmation_level"),
+            "summary": result.get("summary"),
+            "payload": result.get("payload") or {},
+        }
 
     @staticmethod
     def _extract_cart_params(user_message: str) -> dict:

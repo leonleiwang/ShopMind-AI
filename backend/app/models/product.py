@@ -3,7 +3,7 @@
 """
 
 # backend/app/models/product.py
-from sqlalchemy import Column, DateTime, Float, Integer, String, Text
+from sqlalchemy import JSON, Column, DateTime, Float, Integer, String, Text
 from sqlalchemy.sql import func
 
 from app.db.base import Base
@@ -20,6 +20,8 @@ class Product(Base):
     brand = Column(String(100), default="")
     image_url = Column(String(500), default="")
     stock = Column(Integer, default=0)
+    attributes = Column(JSON, nullable=False, default=dict)
+    tags = Column(JSON, nullable=False, default=list)
     pricing_suggestion = Column(Text, default="")
     marketing_copy = Column(Text, default="")
     created_at = Column(DateTime(timezone=True), server_default=func.now())

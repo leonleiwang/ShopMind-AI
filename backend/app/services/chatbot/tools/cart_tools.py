@@ -60,3 +60,28 @@ class ClearCartTool:
     async def execute(self, **kwargs) -> Any:
         await CartService.clear_cart(self.db, self.user_id)
         return {"message": "Cart cleared"}
+
+
+class RemoveFromCartTool:
+    name = "remove_from_cart"
+    description = "Remove products from the user's shopping cart by product_id or keyword"
+    parameters = {
+        "type": "object",
+        "properties": {
+            "product_id": {"type": "integer", "description": "ID of the product to remove"},
+            "keyword": {"type": "string", "description": "Product name/category keyword to remove"},
+        },
+    }
+
+    def __init__(self, db: AsyncSession, user_id: int):
+        self.db = db
+        self.user_id = user_id
+
+    async def execute(self, **kwargs) -> Any:
+        removed = await CartService.remove_from_cart(
+            self.db,
+            self.user_id,
+            product_id=kwargs.get("product_id"),
+            keyword=kwargs.get("keyword"),
+        )
+        return {"removed_count": removed}
