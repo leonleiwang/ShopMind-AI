@@ -330,8 +330,8 @@ HITL_ABNORMAL_QUANTITY_THRESHOLD=20
 | Agent 可观测性仪表盘 | ![Agent调用仪表盘](docs/screenshots/Agent_dashboard-1.png) |
 | AI 自动化运营 | ![Agent智能运营](docs/screenshots/Automated_operations-1.png) |
 | WebSocket 实时订单推送 | ![实时订单推送](docs/screenshots/Real-time_WebSockert_order-1.png) |
-| AgentOps 风控治理 | ![风控治理](docs/screenshots/AgentOps.png.png)  |
-| 角色化 Demo Portal | ![角色展示页](docs/screenshots/Demo_Portal.png.png) |
+| AgentOps 风控治理 | ![风控治理](docs/screenshots/AgentOps.png)  |
+| 角色化 Demo Portal | ![角色展示页](docs/screenshots/Demo_Portal.png) |
 
 
 ## ✅ 当前完成度 Current Completion Status
