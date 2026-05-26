@@ -20,23 +20,6 @@ class UserPreference(Base):
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
 
-class SupportTicket(Base):
-    __tablename__ = "support_tickets"
-
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
-    order_id = Column(Integer, ForeignKey("orders.id"), nullable=True, index=True)
-    category = Column(String(40), nullable=False, index=True)
-    status = Column(String(30), nullable=False, default="open", index=True)
-    priority = Column(String(20), nullable=False, default="normal", index=True)
-    subject = Column(String(255), nullable=False)
-    description = Column(Text, nullable=False, default="")
-    resolution = Column(Text, nullable=False, default="")
-    details = Column("metadata", JSON, nullable=False, default=dict)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
-
-
 class AgentExecutionLog(Base):
     __tablename__ = "agent_execution_logs"
 

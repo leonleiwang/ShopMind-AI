@@ -17,6 +17,7 @@ htmlcov/
 venv/
 
 node_modules/
+frontend/frontend/
 .next/
 .turbo/
 out/

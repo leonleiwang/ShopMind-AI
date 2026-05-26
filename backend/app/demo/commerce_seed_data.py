@@ -311,7 +311,7 @@ def support_ticket_samples() -> list[dict[str, Any]]:
         {
             "email": "shopper@example.com",
             "category": categories[i % len(categories)],
-            "status": "open" if i % 3 else "pending_review",
+            "status": "open" if i % 3 else "pending",
             "priority": priorities[i % len(priorities)],
             "subject": f"售后样本 {i + 1}: 商品体验或订单问题",
             "description": "用于演示客服 Agent、退款/投诉识别和人工接管队列。",

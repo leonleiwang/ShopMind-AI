@@ -16,6 +16,8 @@ from app.services.chatbot.tools.product_search import ProductSearchTool
 from app.services.chatbot.tools.registry import ToolRegistry
 from app.services.chatbot.vector_store_manager import VectorStoreManager
 from app.services.hitl_service import ApprovalService
+from app.schemas.support import HandoffEvaluationRequest
+from app.services.support_service import AgentAssistService, HumanHandoffService, LLMRoutingService, SupportTicketService
 
 
 def test_keyword_router_handles_negative_order_intent():
@@ -356,3 +358,93 @@ def test_hitl_order_risk_keeps_standard_checkout_confirmation():
     assert risk["approval_channel"] == "chat"
     assert risk["confirmation_level"] == "standard"
     assert risk["risk_reasons"] == ["standard_checkout_confirmation"]
+
+
+def test_handoff_service_flags_refund_requests():
+    evaluation = HumanHandoffService.evaluate(
+        HandoffEvaluationRequest(
+            message="I want a refund for this order",
+            intent="refund_request",
+            confidence=0.91,
+            conversation_id="conv-refund",
+        )
+    )
+    assert evaluation["should_handoff"] is True
+    assert evaluation["category"] == "refund"
+    assert evaluation["risk_level"] == "medium"
+    assert "refund_risk" in evaluation["reasons"]
+    assert evaluation["routing_strategy"] == "agent_workflow"
+
+
+def test_handoff_service_escalates_legal_complaints_to_human():
+    evaluation = HumanHandoffService.evaluate(
+        HandoffEvaluationRequest(
+            message="我要投诉并起诉你们",
+            intent="unknown",
+            confidence=0.8,
+            conversation_id="conv-legal",
+        )
+    )
+    assert evaluation["should_handoff"] is True
+    assert evaluation["risk_level"] == "high"
+    assert evaluation["priority"] == "urgent"
+    assert evaluation["routing_strategy"] == "human_handoff"
+
+
+def test_handoff_service_keeps_low_confidence_general_message_out_of_auto_ticket():
+    evaluation = HumanHandoffService.evaluate(
+        HandoffEvaluationRequest(message="not sure", intent="unknown", confidence=0.2)
+    )
+    assert evaluation["should_handoff"] is True
+    assert ChatService._should_auto_create_handoff(evaluation) is False
+
+
+def test_llm_routing_service_chooses_cost_aware_paths():
+    assert LLMRoutingService.route(intent="order_status", message="Where is my order?") == "sql_cache"
+    assert LLMRoutingService.route(intent="faq", message="What is the refund policy?") == "rag"
+    assert LLMRoutingService.route(intent="refund_request", category="refund") == "agent_workflow"
+    assert LLMRoutingService.route(intent="unknown", category="complaint", risk_level="high") == "human_handoff"
+
+
+def test_agent_assist_builds_support_context():
+    assist = AgentAssistService.build_assist(
+        message="I need a refund",
+        intent="refund_request",
+        confidence=0.88,
+        category="refund",
+        risk_level="medium",
+        routing_strategy="agent_workflow",
+        order_snapshot={"order_id": 1, "status": "paid"},
+    )
+    assert assist.intent == "refund_request"
+    assert assist.routing_strategy == "agent_workflow"
+    assert assist.knowledge_refs[0]["section"] == "after_sales.refund"
+    assert assist.order_snapshot["order_id"] == 1
+
+
+def test_agent_assist_maps_ticket_categories_to_intents():
+    assert AgentAssistService.intent_for_category("refund") == "refund_request"
+    assert AgentAssistService.intent_for_category("complaint") == "complaint_escalation"
+    assert AgentAssistService.intent_for_category("shipping") == "shipping_exception"
+    assert AgentAssistService.intent_for_category("unknown") == "support_request"
+
+
+def test_agent_assist_keeps_high_risk_cases_human_owned():
+    assist = AgentAssistService.build_assist(
+        message="Customer threatens legal action",
+        intent="legal_risk",
+        confidence=0.77,
+        category="legal",
+        risk_level="high",
+        routing_strategy="human_handoff",
+    )
+    assert assist.risk_level == "high"
+    assert assist.routing_strategy == "human_handoff"
+    assert "Legal risk" in assist.knowledge_refs[0]["title"]
+
+
+def test_support_ticket_sla_deadline_prioritizes_urgent_cases():
+    normal = SupportTicketService.sla_deadline("normal", "low")
+    urgent = SupportTicketService.sla_deadline("urgent", "high")
+    assert urgent < normal
+    assert SupportTicketService.new_ticket_id().startswith("TCK-")

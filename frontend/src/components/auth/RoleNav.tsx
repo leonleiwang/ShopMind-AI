@@ -26,8 +26,8 @@ const navGroups = [
   {
     label: '客服侧',
     links: [
-      { href: '/support/conversations', label: '客服会话台' },
-      { href: '/support/escalations', label: '异常升级队列' },
+      { href: '/support/conversations', label: '联络中心' },
+      { href: '/support/escalations', label: '异常升级' },
     ],
   },
   {

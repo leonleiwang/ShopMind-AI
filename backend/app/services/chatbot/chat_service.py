@@ -31,8 +31,10 @@ from app.services.chatbot.tools.order_tools import CheckOrderTool, PlaceOrderToo
 from app.services.chatbot.tools.product_compare import ProductCompareTool
 from app.services.chatbot.tools.product_search import ProductSearchTool
 from app.services.chatbot.tools.registry import ToolRegistry
+from app.schemas.support import HandoffEvaluationRequest
 from app.services.hitl_service import ApprovalService
 from app.services.observability import AgentObservability
+from app.services.support_service import HumanHandoffService, SupportTicketService
 
 
 class ChatService:
@@ -88,6 +90,31 @@ class ChatService:
             },
         )
         await asyncio.sleep(0.3)
+
+        handoff_request = HandoffEvaluationRequest(
+            message=user_message,
+            conversation_id=self.state.conversation_id,
+            intent=intent,
+            confidence=route.confidence,
+            channel="chat",
+            create_ticket=True,
+        )
+        handoff_evaluation = HumanHandoffService.evaluate(handoff_request)
+        if handoff_evaluation["should_handoff"] and self._should_auto_create_handoff(handoff_evaluation):
+            ticket = await self._create_handoff_ticket(handoff_request, handoff_evaluation)
+            content = self._format_handoff_created(ticket["ticket_id"], handoff_evaluation["reasons"])
+            self._remember("assistant", content)
+            yield self._event(
+                "handoff",
+                {
+                    "ticket": ticket,
+                    "reasons": handoff_evaluation["reasons"],
+                    "routing_strategy": handoff_evaluation["routing_strategy"],
+                    "conversation_id": self.state.conversation_id,
+                },
+            )
+            yield self._event("final", {"content": content, "conversation_id": self.state.conversation_id})
+            return
 
         # 2. [反思5a-低置信度澄清 gate] 对于可执行工具的意图，如果置信度较低，先进行澄清确认，避免误操作
         if self._needs_low_confidence_clarification(route.confidence, intent):
@@ -181,6 +208,7 @@ class ChatService:
                 self._remember("assistant", content)
                 yield self._event("final", {"content": content, "conversation_id": self.state.conversation_id})
         except Exception:
+            await self._create_tool_failure_handoff(user_message)
             content = self._human_handoff_text()
             self._remember("assistant", content)
             yield self._event("final", {"content": content, "conversation_id": self.state.conversation_id, "degraded": True})
@@ -228,6 +256,49 @@ class ChatService:
     @staticmethod
     def _human_handoff_text() -> str:
         return "当前智能客服链路繁忙或工具调用失败，我先为你保留上下文。你可以稍后重试，或转人工继续处理。"
+
+    @staticmethod
+    def _should_auto_create_handoff(evaluation: dict) -> bool:
+        reasons = set(evaluation.get("reasons") or [])
+        if evaluation.get("category") != "general":
+            return True
+        return bool(reasons & {"negative_sentiment", "tool_failed", "repeated_unresolved_followup"})
+
+    async def _create_handoff_ticket(self, request: HandoffEvaluationRequest, evaluation: dict) -> dict:
+        ticket, _ = await SupportTicketService.create_from_handoff(
+            self.db,
+            customer_id=self.user_id,
+            actor_id=self.user_id,
+            request=request,
+            evaluation=evaluation,
+        )
+        return SupportTicketService.serialize_ticket(ticket)
+
+    async def _create_tool_failure_handoff(self, user_message: str) -> None:
+        request = HandoffEvaluationRequest(
+            message=user_message,
+            conversation_id=self.state.conversation_id,
+            intent=self.state.last_intent or "unknown",
+            confidence=0.0,
+            tool_failed=True,
+            channel="chat",
+            create_ticket=True,
+        )
+        evaluation = HumanHandoffService.evaluate(request)
+        try:
+            await self._create_handoff_ticket(request, evaluation)
+        except Exception:
+            return
+
+    @staticmethod
+    def _format_handoff_created(ticket_id: str, reasons: list[str]) -> str:
+        reason_text = ", ".join(reasons) if reasons else "manual_review"
+        return (
+            "我已经为这次咨询创建客服工单，并保留当前会话上下文。\n"
+            f"Ticket: {ticket_id}\n"
+            f"Handoff reason: {reason_text}\n"
+            "人工客服会基于订单、政策和会话摘要继续处理。"
+        )
 
     @staticmethod
     def _parse_json_object(content: str) -> dict:

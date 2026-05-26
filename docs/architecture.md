@@ -11,6 +11,7 @@ ShopMind AI is organized as a layered AI-native commerce application.
 | Service Layer | Product, cart, order, and user business logic |
 | Agent Layer | Intent routing, planning, recommendation, comparison, cart/order handling |
 | Tool Layer | MCP-style tool registry and tool caller abstraction |
+| Contact Center Layer | Support tickets, human handoff, ticket events, AI assist records, cost-aware routing |
 | Async Layer | Celery worker for long-running AI/product operations |
 | Data Layer | PostgreSQL models and Alembic migrations |
 | Vector Layer | Milvus in production, Chroma as a development fallback, local semantic ranking fallback |
@@ -24,6 +25,7 @@ ShopMind AI is organized as a layered AI-native commerce application.
 5. Tool calls go through `ToolCaller` and `ToolRegistry`.
 6. SSE events stream intent, thought, action, observation, and final answer back to the UI.
 7. `AgentObservability` records intents, tool calls, latency, SSE events, and recent activity for `/dashboard`.
+8. Support-risk messages can create `support_tickets`, write `ticket_events`, and generate `ticket_ai_assists` for the `/support` workspace.
 
 ## Deployment
 
@@ -47,5 +49,7 @@ The implementation also includes the production-facing extensions:
 - semantic product ranking through `VectorStoreManager`
 - WebSocket order-status snapshots and updates
 - operations dashboard and Agent observability at `/dashboard`
+- contact center workspace at `/support/conversations` and escalation queue at `/support/escalations`
+- support ticket tables: `support_tickets`, `ticket_events`, and `ticket_ai_assists`
 - pytest coverage for routing, planning, MCP schemas, and semantic ranking
 - Celery AI operations for descriptions, pricing suggestions, marketing copy, and recommendation refresh

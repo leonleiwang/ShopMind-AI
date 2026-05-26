@@ -19,10 +19,12 @@ from app.demo.commerce_seed_data import (
     user_preference_samples,
 )
 from app.models.cart import CartItem
-from app.models.demo_data import AgentExecutionLog, SupportTicket, UserPreference
+from app.models.demo_data import AgentExecutionLog, UserPreference
 from app.models.hitl import ApprovalRequest
 from app.models.order import Order, OrderItem
 from app.models.product import Product
+from app.models.support import SupportTicket, TicketAIAssist, TicketEvent
+from app.services.support_service import AgentAssistService, LLMRoutingService
 from app.models.user import User
 
 
@@ -111,12 +113,85 @@ async def _seed_orders_and_cart(db, users):
 
 async def _seed_support_tickets(db, users):
     existing = await db.scalar(select(func.count(SupportTicket.id)))
-    if existing:
-        return 0
     inserted = 0
-    for item in support_ticket_samples():
-        user = users[item.pop("email")]
-        db.add(SupportTicket(user_id=user.id, **item))
+    if not existing:
+        for index, item in enumerate(support_ticket_samples()):
+            user = users[item.pop("email")]
+            details = item.pop("details", {})
+            subject = item.get("subject", "")
+            category = item.get("category", "general")
+            priority = item.get("priority", "normal")
+            risk_level = "high" if category in {"complaint"} else "medium" if category in {"refund", "human_handoff"} else "low"
+            db.add(
+                SupportTicket(
+                    ticket_id=f"DEMO-TCK-{index + 1:04d}",
+                    user_id=user.id,
+                    customer_id=user.id,
+                    conversation_id=f"demo-support-conversation-{index + 1:02d}",
+                    channel=["web", "app", "chat"][index % 3],
+                    assigned_agent="support@example.com" if index % 2 == 0 else "",
+                    summary=subject,
+                    risk_level=risk_level,
+                    handoff_reason="demo_seed_support_case" if category in {"refund", "complaint", "human_handoff"} else "",
+                    details={
+                        **details,
+                        "intent": AgentAssistService.intent_for_category(category),
+                        "confidence": 0.86 if risk_level != "high" else 0.74,
+                    },
+                    **item,
+                )
+            )
+            inserted += 1
+        await db.flush()
+    assists = await _seed_support_assists(db)
+    return {"tickets": inserted, "ai_assists": assists}
+
+
+async def _seed_support_assists(db):
+    inserted = 0
+    tickets = (await db.execute(select(SupportTicket).order_by(SupportTicket.id).limit(20))).scalars().all()
+    for ticket in tickets:
+        event_exists = await db.scalar(select(func.count(TicketEvent.id)).where(TicketEvent.ticket_id == ticket.id))
+        if not event_exists:
+            db.add(
+                TicketEvent(
+                    ticket_id=ticket.id,
+                    actor_id=ticket.customer_id,
+                    event_type="created",
+                    to_status=ticket.status,
+                    details={"source": "demo_seed", "category": ticket.category, "priority": ticket.priority},
+                )
+            )
+        assist_exists = await db.scalar(select(func.count(TicketAIAssist.id)).where(TicketAIAssist.ticket_id == ticket.id))
+        if assist_exists:
+            continue
+        intent = str((ticket.details or {}).get("intent") or AgentAssistService.intent_for_category(ticket.category))
+        confidence = float((ticket.details or {}).get("confidence") or 0.82)
+        routing_strategy = LLMRoutingService.route(
+            intent=intent,
+            category=ticket.category,
+            risk_level=ticket.risk_level,
+            confidence=confidence,
+            message=ticket.summary,
+        )
+        assist = AgentAssistService.build_assist(
+            message=ticket.summary,
+            intent=intent,
+            confidence=confidence,
+            category=ticket.category,
+            risk_level=ticket.risk_level,
+            routing_strategy=routing_strategy,
+            order_snapshot={"order_id": ticket.order_id, "status": "demo"} if ticket.order_id else {},
+        )
+        db.add(TicketAIAssist(ticket_id=ticket.id, conversation_id=ticket.conversation_id, **assist.model_dump()))
+        db.add(
+            TicketEvent(
+                ticket_id=ticket.id,
+                actor_id=None,
+                event_type="ai_assist_generated",
+                details={"source": "demo_seed", "intent": intent, "routing_strategy": routing_strategy},
+            )
+        )
         inserted += 1
     return inserted
 
