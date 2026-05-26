@@ -679,6 +679,16 @@ Agent workflow 在多工具调用场景下容易黑盒化；同时，大模型 A
 | 多租户 | 未实现 | 多商家隔离、租户级数据权限 |
 | 部署文档 | 基础 Docker/Railway/Vercel | 生产 runbook、备份恢复、灰度发布 |
 
+针对 V1.1.0 新增的 Contact Center Module，当前版本定位为“企业客服 SaaS / AICC 的业务骨架验证”：已覆盖坐席工作台、工单、异常升级、转人工、SLA、分派坐席、操作日志、AI 坐席辅助与成本路由。暂时不会在 ShopMind AI 中继续大幅扩张客服系统复杂度，而是优先把未完成能力整理为 Roadmap，并在后续版本逐步实现。
+
+| 方向 | V1.1.0 当前覆盖 | 后续规划 |
+| ---- | -------------- | -------- |
+| 智能客服 / AICC 业务模型 | 已有三栏坐席工作台、`support_tickets`、`ticket_events`、异常升级、转人工规则、SLA 展示、assigned agent、AI Assist 记录与生成 | 多渠道真实接入、会话路由 / 排队、客户画像、质检 Agent、满意度回访、真实智能填单、知识库运营闭环 |
+| RAG 到企业知识库运营 | AI Assist 可展示知识库引用，`LLMRoutingService` 支持 FAQ / RAG / Agent / Handoff 的成本路由 | 文档导入、chunk 策略、Hybrid Search、rerank、真实引用溯源、知识命中率、未命中问题沉淀、FAQ 自动生成、知识健康度检查、过期 / 冲突知识检测、采编审核流 |
+| 低延迟多轮客服体验 | 原项目已有 SSE / Agent trace 基础，Contact Center 已有工单状态追踪、转人工、成本路由和 AI Assist 生成记录 | 客服对话流式响应、用户打断 / 中断生成、多轮 memory 与工单联动、AI 输出实时进入坐席侧边栏、WebSocket / SSE 驱动的实时工单推送 |
+| Agent 评估与运营指标 | 已有工单数量、升级数量、SLA risk、high risk、confidence、routing strategy、操作日志与测试验证 | 解决率、转人工率、首次响应时间、平均处理时长、AI Assist 采纳率、知识命中率、CSAT、token / LLM cost、质检覆盖率 |
+| Java / Spring 工程化演进 | ShopMind AI 当前以 FastAPI + React 展示 AI-native 全栈能力 | 放入后续独立项目 ContactFlow AI，避免在当前仓库中引入过重技术栈迁移 |
+
 
 ## 📦 部署架构 Deployment Architecture
 
