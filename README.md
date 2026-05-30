@@ -4,9 +4,7 @@
 
 # 🛒 ShopMind AI 
 
-### Multi-Agent Conversational Commerce System with RAG, AgentOps, Customer Support, and Data Agent
-
---- 
+## Multi-Agent Conversational Commerce System with RAG, AgentOps, Customer Support, and Data Agent
 
 <!-- Project Health --> 
 <p> 
@@ -75,6 +73,7 @@
 
 > 本仓库当前定位为 **V1.1.1 Agent Eval + Data Agent 版**：在 V1.1.0 Contact Center 的基础上，新增 Agent 评测与自然语言数据查询模块，覆盖 50 条评测任务、工具/SQL/API/答案校验、失败归因、延迟与 token 成本记录，以及订单异常、客服 SLA、商品表现、退款风险四类 Data Agent 查询。但如果作为直接商用的 SaaS 产品，需要在落地阶段补齐企业自家的支付、物流、库存并发、售后、多租户、安全加固和生产级监控。
 
+--- 
 
 ## 🎯 项目背景与设计思路 Why This Project
 
