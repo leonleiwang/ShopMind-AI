@@ -1,6 +1,6 @@
 <div align="center"> 
 
-<img src="docs/screenshots/ShopMind_AI_Log.png" alt="ShopMind AI Logo" width="120" /> 
+<img src="docs/screenshots/ShopMind_AI_Log.png" alt="ShopMind AI Logo" width="200" /> 
 
 # 🛒 ShopMind AI 
 
