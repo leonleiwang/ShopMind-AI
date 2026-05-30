@@ -1,4 +1,14 @@
-﻿# ShopMind AI – Multi-Agent Commerce System with MCP & RAG
+<div align="center"> 
+
+<img src="docs/assets/shopmind-logo.png" alt="ShopMind AI Logo" width="120" /> 
+
+# 🛒 ShopMind AI 
+
+### Multi-Agent Conversational Commerce System with RAG, AgentOps, Customer Support, and Data Agent
+
+<p> 
+    <strong>ShopMind AI</strong> is an end-to-end AI commerce and customer support platform that combines multi-agent orchestration, natural language shopping, RAG-based knowledge retrieval, support ticket workflows, human-in-the-loop governance, and Agent Eval / Data Agent observability. 
+</p>
 
 > **一句话概述**：ShopMind AI 是一个面向电商场景的多智能体对话式商务系统，集成自然语言选品、商品推荐、购物车/订单、商家 AI 运营、客服接管、HITL 风控审批与 AgentOps 治理能力，用于探索、实践和展示 AI Agent 在真实业务流程中的产品化落地方式。
 
