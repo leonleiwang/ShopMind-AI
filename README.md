@@ -17,14 +17,18 @@
 </p> 
 
 <!-- Core AI Capabilities --> 
-<p> 
-    <img src="https://img.shields.io/badge/AI%20Agent-Multi--Agent%20Workflow-7C3AED?style=flat-square" /> 
-    <img src="https://img.shields.io/badge/RAG-Knowledge%20Retrieval-16A34A?style=flat-square" /> 
-    <img src="https://img.shields.io/badge/MCP-Tool%20Calling-6D28D9?style=flat-square" /> 
-    <img src="https://img.shields.io/badge/HITL-Risk%20Review-DC2626?style=flat-square" /> 
-    <img src="https://img.shields.io/badge/AgentOps-Trace%20%26%20Governance-7C3AED?style=flat-square" /> 
-    <img src="https://img.shields.io/badge/Data%20Agent-SQL%20Analytics-0F766E?style=flat-square" /> 
-</p> 
+<p>
+    <img src="https://img.shields.io/badge/AI%20Agent-Multi--Agent%20Workflow-7C3AED?style=flat-square" />
+    <img src="https://img.shields.io/badge/RAG-Knowledge%20Retrieval-16A34A?style=flat-square" />
+    <img src="https://img.shields.io/badge/MCP-Tool%20Calling-6D28D9?style=flat-square" />
+    <img src="https://img.shields.io/badge/HITL-Risk%20Review-DC2626?style=flat-square" />
+</p>
+
+<p>
+    <img src="https://img.shields.io/badge/AgentOps-Trace%20%26%20Governance-7C3AED?style=flat-square" />
+    <img src="https://img.shields.io/badge/Data%20Agent-SQL%20Analytics-0F766E?style=flat-square" />
+    <img src="https://img.shields.io/badge/Agent%20Eval-50%20Cases-0EA5E9?style=flat-square" />
+</p>
 
 <!-- Backend / Frontend --> 
 <p> 
