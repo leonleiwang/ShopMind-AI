@@ -7,9 +7,10 @@ services:
       - "8000:8000"
     environment:
       - ENVIRONMENT=production
-      - VERSION=1.1.0
+      - VERSION=1.1.1
       - DATABASE_URL=postgresql+asyncpg://shopmind:shopmind@db:5432/shopmind
       - REDIS_URL=redis://redis:6379/0
+      - AGENT_EVAL_MODE=baseline
       - SECRET_KEY=change-me-in-real-prod
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - DASHSCOPE_API_KEY=${DASHSCOPE_API_KEY}
@@ -30,9 +31,10 @@ services:
     command: celery -A app.tasks.celery_app:celery_app worker --loglevel=info --pool=solo
     environment:
       - ENVIRONMENT=production
-      - VERSION=1.1.0
+      - VERSION=1.1.1
       - DATABASE_URL=postgresql+asyncpg://shopmind:shopmind@db:5432/shopmind
       - REDIS_URL=redis://redis:6379/0
+      - AGENT_EVAL_MODE=baseline
       - SECRET_KEY=change-me-in-real-prod
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - DASHSCOPE_API_KEY=${DASHSCOPE_API_KEY}

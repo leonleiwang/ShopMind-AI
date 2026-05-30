@@ -7,7 +7,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     # 核心应用配置
     PROJECT_NAME: str = "ShopMind AI"
-    VERSION: str = "1.1.0"
+    VERSION: str = "1.1.1"
     API_V1_STR: str = "/api/v1"
     SECRET_KEY: str = "change-me-for-production"
     ENVIRONMENT: str = "development"
@@ -74,6 +74,7 @@ class Settings(BaseSettings):
     HITL_MANUAL_REVIEW_ORDER_THRESHOLD: float = 10000.0
     HITL_LARGE_QUANTITY_THRESHOLD: int = 5
     HITL_ABNORMAL_QUANTITY_THRESHOLD: int = 20
+    AGENT_EVAL_MODE: str = "baseline"
 
     @property
     def CELERY_BROKER_URL(self) -> str:

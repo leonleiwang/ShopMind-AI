@@ -35,6 +35,7 @@ const navGroups = [
     links: [
       { href: '/governance', label: '风控治理' },
       { href: '/dashboard', label: '工程观测' },
+      { href: '/agent-eval', label: 'Agent Eval' },
     ],
   },
 ];

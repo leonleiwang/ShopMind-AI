@@ -2,22 +2,34 @@
 Agent / Planner / MCP / 向量排序测试
 """
 
-from app.mcp.server import _tool_schemas
 from app.demo.commerce_seed_data import generate_product_catalog, nlu_regression_corpus
+from app.mcp.server import _tool_schemas
+from app.schemas.support import HandoffEvaluationRequest
+from app.services.agent_eval import (
+    AgentEvalRunner,
+    DataAgentRouter,
+    DataAgentService,
+    EvalCorpus,
+    ReadOnlySQLValidator,
+)
 from app.services.chatbot.agents.conversation import ClarificationAgent
 from app.services.chatbot.agents.intent_router import IntentRouterAgent
 from app.services.chatbot.agents.planning import PlanningAgent
 from app.services.chatbot.agents.recommendation import RecommendationAgent
 from app.services.chatbot.chat_service import ChatService
 from app.services.chatbot.knowledge_base import BusinessKnowledgeRetriever
-from app.services.chatbot.prompts import prompt_manager
 from app.services.chatbot.product_resolver import ProductResolver, ShoppingRequestParser
+from app.services.chatbot.prompts import prompt_manager
 from app.services.chatbot.tools.product_search import ProductSearchTool
 from app.services.chatbot.tools.registry import ToolRegistry
 from app.services.chatbot.vector_store_manager import VectorStoreManager
 from app.services.hitl_service import ApprovalService
-from app.schemas.support import HandoffEvaluationRequest
-from app.services.support_service import AgentAssistService, HumanHandoffService, LLMRoutingService, SupportTicketService
+from app.services.support_service import (
+    AgentAssistService,
+    HumanHandoffService,
+    LLMRoutingService,
+    SupportTicketService,
+)
 
 
 def test_keyword_router_handles_negative_order_intent():
@@ -448,3 +460,100 @@ def test_support_ticket_sla_deadline_prioritizes_urgent_cases():
     urgent = SupportTicketService.sla_deadline("urgent", "high")
     assert urgent < normal
     assert SupportTicketService.new_ticket_id().startswith("TCK-")
+
+
+def test_agent_eval_corpus_contains_required_50_cases():
+    cases = EvalCorpus.cases()
+    assert len(cases) == 50
+    assert {case.suite for case in cases} == {
+        "order_exception",
+        "support_sla",
+        "product_performance",
+        "refund_risk",
+    }
+    assert all(case.expected_tool.startswith("data_agent.") for case in cases)
+    assert all(case.expected_sql.lower().startswith("select") for case in cases)
+
+
+async def test_agent_eval_runner_reports_metrics_for_full_corpus():
+    summary = await AgentEvalRunner.run()
+    assert summary["total_cases"] == 50
+    assert summary["passed_cases"] == 45
+    assert summary["business_task_cases"] == 45
+    assert summary["business_task_passed_cases"] == 45
+    assert summary["business_task_pass_rate"] == 1
+    assert summary["controlled_failure_cases"] == 5
+    assert summary["guardrail_caught_cases"] == 5
+    assert summary["guardrail_catch_rate"] == 1
+    assert summary["overall_eval_coverage"] == 50
+    assert summary["failure_counts"] == {
+        "intent_recognition_failure": 1,
+        "permission_failure": 2,
+        "tool_call_failure": 1,
+        "hallucination": 1,
+    }
+    assert summary["tool_success_rate"] == 0.9
+    assert summary["answer_correctness"] == 0.9
+    assert summary["avg_latency_ms"] >= 0
+    assert summary["runner_latency_ms"] >= 0
+    assert summary["token_cost"] > 0
+    assert summary["eval_mode"] == "baseline"
+
+
+async def test_agent_eval_accepts_deterministic_alias_as_baseline():
+    summary = await AgentEvalRunner.run(mode="deterministic")
+    assert summary["eval_mode"] == "baseline"
+
+
+async def test_agent_eval_single_case_keeps_expected_sql_and_tool():
+    case = EvalCorpus.get("support_sla-01")
+    assert case is not None
+    result = await AgentEvalRunner.run_case(case)
+    assert result["passed"] is True
+    assert result["checks"] == {"tool": True, "sql": True, "api": True, "answer": True}
+
+
+async def test_data_agent_answers_core_business_queries_without_database():
+    order_result = await DataAgentService.answer("帮我看一下订单异常和高金额风险")
+    product_result = await DataAgentService.answer("商品 SKU 和库存表现怎么样？")
+    refund_result = await DataAgentService.answer("退款风险最近怎么样？")
+
+    assert order_result["ok"] is True
+    assert order_result["intent"] == "order_exception"
+    assert "订单异常" in order_result["answer"]
+    assert product_result["intent"] == "product_performance"
+    assert "商品表现" in product_result["answer"]
+    assert refund_result["intent"] == "refund_risk"
+    assert "退款风险" in refund_result["answer"]
+
+
+def test_data_agent_blocks_write_or_sensitive_requests():
+    plan = DataAgentRouter.plan("帮我 drop table orders 并导出所有用户手机号")
+    assert plan.failure_category == "permission_failure"
+    assert plan.tool == "data_agent.guardrail"
+    assert plan.sql == ""
+
+
+def test_data_agent_sql_validator_allows_only_safe_selects():
+    safe = ReadOnlySQLValidator.describe("SELECT status, COUNT(*) FROM orders GROUP BY status;")
+    unsafe = ReadOnlySQLValidator.describe("SELECT phone, address FROM users;")
+    assert safe["validated"] is True
+    assert unsafe["validated"] is False
+    assert unsafe["blocked_sensitive_fields"]
+
+
+async def test_agent_eval_controlled_failures_are_visible():
+    case = EvalCorpus.get("refund_risk-13")
+    assert case is not None
+    result = await AgentEvalRunner.run_case(case)
+    assert result["passed"] is False
+    assert result["controlled_failure"] is True
+    assert result["guardrail_caught"] is True
+    assert result["failure_category"] == "hallucination"
+
+
+async def test_data_agent_unknown_question_is_intent_failure():
+    result = await DataAgentService.answer("明天上海天气怎么样？")
+    assert result["ok"] is False
+    assert result["failure_category"] == "intent_recognition_failure"
+    assert "订单异常" in result["answer"]
