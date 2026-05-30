@@ -1,18 +1,10 @@
 <div align="center"> 
 
-<img src="docs/assets/shopmind-logo.png" alt="ShopMind AI Logo" width="120" /> 
+<img src="docs/assets/ShopMind_AI_Log.png" alt="ShopMind AI Logo" width="120" /> 
 
 # 🛒 ShopMind AI 
 
 ### Multi-Agent Conversational Commerce System with RAG, AgentOps, Customer Support, and Data Agent
-
-<p> 
-    <strong>ShopMind AI</strong> is an end-to-end AI commerce and customer support platform that combines multi-agent orchestration, natural language shopping, RAG-based knowledge retrieval, support ticket workflows, human-in-the-loop governance, and Agent Eval / Data Agent observability. 
-</p>
-
-> **一句话概述**：ShopMind AI 是一个面向电商场景的多智能体对话式商务系统，集成自然语言选品、商品推荐、购物车/订单、商家 AI 运营、客服接管、HITL 风控审批与 AgentOps 治理能力，用于探索、实践和展示 AI Agent 在真实业务流程中的产品化落地方式。
-
-> 本仓库当前定位为 **V1.1.0 Contact Center 版**：在 V1.0.0 对话式电商、商家运营、HITL 和 AgentOps 的基础上，新增 AI 客服联络中心模块，覆盖工单、转人工、SLA、AI 坐席辅助、成本路由和客服升级队列。但如果作为直接商用的 SaaS 产品，需要在落地阶段补齐企业自家的支付、物流、库存并发、售后、多租户、安全加固和生产级监控。
 
 --- 
 
@@ -66,7 +58,17 @@
     <img src="https://img.shields.io/badge/RBAC-Role%20Guard-2563EB?style=flat-square" /> 
 </p> 
 
+<p> 
+    <strong>ShopMind AI</strong> is an end-to-end AI commerce and customer support platform that combines multi-agent orchestration, natural language shopping, RAG-based knowledge retrieval, support ticket workflows, human-in-the-loop governance, and Agent Eval / Data Agent observability. 
+</p>
+
 ---
+</div>
+
+> **一句话概述**：ShopMind AI 是一个面向电商场景的多智能体对话式商务系统，集成自然语言选品、商品推荐、购物车/订单、商家 AI 运营、客服接管、HITL 风控审批与 AgentOps 治理能力，用于探索、实践和展示 AI Agent 在真实业务流程中的产品化落地方式。
+
+> 本仓库当前定位为 **V1.1.1 Agent Eval + Data Agent 版**：在 V1.1.0 Contact Center 的基础上，新增 Agent 评测与自然语言数据查询模块，覆盖 50 条评测任务、工具/SQL/API/答案校验、失败归因、延迟与 token 成本记录，以及订单异常、客服 SLA、商品表现、退款风险四类 Data Agent 查询。但如果作为直接商用的 SaaS 产品，需要在落地阶段补齐企业自家的支付、物流、库存并发、售后、多租户、安全加固和生产级监控。
+
 
 ## 🎯 项目背景与设计思路 Why This Project
 
