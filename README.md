@@ -61,7 +61,7 @@
     <img src="https://img.shields.io/badge/ChromaDB-Vector%20Store-22C55E?style=flat-square" />
     <img src="https://img.shields.io/badge/JWT-Auth-111827?style=flat-square" />
     <img src="https://img.shields.io/badge/RBAC-Guard-2563EB?style=flat-square" />
-    <img src="https://img.shields.io/badge/LLM%20APIs-OpenAI%20%7C%20Qwen%20%7C%20DeepSeek-6366F1?style=flat-square" />
+    <img src="https://img.shields.io/badge/LLM%20APIs-OpenAI%7CQwen%7CDeepSeek-6366F1?style=flat-square" />
 </p>
 
 <p> 
