@@ -4,44 +4,59 @@
 
 > 本仓库当前定位为 **V1.1.0 Contact Center 版**：在 V1.0.0 对话式电商、商家运营、HITL 和 AgentOps 的基础上，新增 AI 客服联络中心模块，覆盖工单、转人工、SLA、AI 坐席辅助、成本路由和客服升级队列。但如果作为直接商用的 SaaS 产品，需要在落地阶段补齐企业自家的支付、物流、库存并发、售后、多租户、安全加固和生产级监控。
 
-<!-- 1. 项目健康度：许可证、测试 -->
-![License](https://img.shields.io/badge/license-MIT-blue)
-![Pytest](https://img.shields.io/badge/pytest-51_passed-blue)
+--- 
 
-<!-- 2. 核心技术栈：后端语言/框架，前端框架 -->
-![Python](https://img.shields.io/badge/python-3.11-blue)
-![FastAPI](https://img.shields.io/badge/fastapi-0.100+-green)
-![TypeScript](https://img.shields.io/badge/typescript-5-3178C6)
-![React](https://img.shields.io/badge/react-19-61DAFB)
-![Next.js](https://img.shields.io/badge/next.js-16-black)
-![TailwindCSS](https://img.shields.io/badge/tailwindcss-4-blue)
-![Zustand](https://img.shields.io/badge/zustand-state_management-orange)
-![WebSocket](https://img.shields.io/badge/WebSocket-fastapi-yellowgreen)
-![SSE](https://img.shields.io/badge/SSE-streaming-0EA5E9)
+<!-- Project Health --> 
+<p> 
+    <img src="https://img.shields.io/badge/License-MIT-2563EB?style=flat-square" /> 
+    <img src="https://img.shields.io/badge/Pytest-60%20passed-0EA5E9?style=flat-square&logo=pytest&logoColor=white" /> 
+    <img src="https://img.shields.io/badge/Frontend-Build%20Passed-22C55E?style=flat-square" /> 
+    <img src="https://img.shields.io/badge/Docker-Compose-2496ED?style=flat-square&logo=docker&logoColor=white" /> 
+</p> 
 
-<!-- 3. AI 与核心能力：Agent、RAG、关键库 -->
-![AI Agent](https://img.shields.io/badge/AI_Agent-Multi_Agent-blueviolet)
-![Multi-Agent](https://img.shields.io/badge/Multi--Agent-Collaboration-8A2BE2)
-![MCP](https://img.shields.io/badge/MCP-Protocol-purple)
-![RAG](https://img.shields.io/badge/RAG-vector_search-green)
-![Product Resolver](https://img.shields.io/badge/Product_Resolver-structured_NLU-22C55E)
-![HITL](https://img.shields.io/badge/HITL-risk_review-red)
-![AgentOps](https://img.shields.io/badge/AgentOps-audit_log-7C3AED)
-![JWT Auth](https://img.shields.io/badge/JWT-authentication-111827)
-![RBAC](https://img.shields.io/badge/RBAC-role_guard-2563EB)
-![LangChain](https://img.shields.io/badge/LangChain-0.3+-blue)
-![LangGraph](https://img.shields.io/badge/LangGraph-0.2+-orange)
-![Milvus](https://img.shields.io/badge/Milvus-2.3+-orange)
-![ChromaDB](https://img.shields.io/badge/ChromaDB-vector_store-22C55E)
+<!-- Core AI Capabilities --> 
+<p> 
+    <img src="https://img.shields.io/badge/AI%20Agent-Multi--Agent%20Workflow-7C3AED?style=flat-square" /> 
+    <img src="https://img.shields.io/badge/RAG-Knowledge%20Retrieval-16A34A?style=flat-square" /> 
+    <img src="https://img.shields.io/badge/MCP-Tool%20Calling-6D28D9?style=flat-square" /> 
+    <img src="https://img.shields.io/badge/HITL-Risk%20Review-DC2626?style=flat-square" /> 
+    <img src="https://img.shields.io/badge/AgentOps-Trace%20%26%20Governance-7C3AED?style=flat-square" /> 
+    <img src="https://img.shields.io/badge/Data%20Agent-SQL%20Analytics-0F766E?style=flat-square" /> 
+</p> 
 
-<!-- 4. 基础设施与协作：数据库、缓存、消息队列、部署 -->
-![PostgreSQL](https://img.shields.io/badge/postgresql-15-blue)
-![SQLAlchemy](https://img.shields.io/badge/SQLAlchemy-2.0-red)
-![Alembic](https://img.shields.io/badge/Alembic-migrations-6B7280)
-![Redis](https://img.shields.io/badge/redis-7-red)
-![Celery](https://img.shields.io/badge/celery-5.x-blue)
-![Docker](https://img.shields.io/badge/docker-compose-2496ED?logo=docker)
+<!-- Backend / Frontend --> 
+<p> 
+    <img src="https://img.shields.io/badge/Python-3.11-3776AB?style=flat-square&logo=python&logoColor=white" /> 
+    <img src="https://img.shields.io/badge/FastAPI-Backend-009688?style=flat-square&logo=fastapi&logoColor=white" /> 
+    <img src="https://img.shields.io/badge/TypeScript-5-3178C6?style=flat-square&logo=typescript&logoColor=white" /> 
+    <img src="https://img.shields.io/badge/React-19-61DAFB?style=flat-square&logo=react&logoColor=black" /> 
+    <img src="https://img.shields.io/badge/Next.js-16-111827?style=flat-square&logo=nextdotjs&logoColor=white" /> 
+    <img src="https://img.shields.io/badge/TailwindCSS-4-06B6D4?style=flat-square&logo=tailwindcss&logoColor=white" /> 
+    <img src="https://img.shields.io/badge/Zustand-State%20Management-F59E0B?style=flat-square" /> 
+</p> 
 
+<!-- Infrastructure / Data --> 
+<p> 
+    <img src="https://img.shields.io/badge/PostgreSQL-15-336791?style=flat-square&logo=postgresql&logoColor=white" /> 
+    <img src="https://img.shields.io/badge/SQLAlchemy-2.0-D71F00?style=flat-square" /> 
+    <img src="https://img.shields.io/badge/Alembic-Migrations-6B7280?style=flat-square" /> 
+    <img src="https://img.shields.io/badge/Redis-7-DC382D?style=flat-square&logo=redis&logoColor=white" /> 
+    <img src="https://img.shields.io/badge/Celery-Async%20Tasks-37814A?style=flat-square&logo=celery&logoColor=white" /> 
+    <img src="https://img.shields.io/badge/WebSocket-Realtime-84CC16?style=flat-square" /> 
+    <img src="https://img.shields.io/badge/SSE-Agent%20Trace-0EA5E9?style=flat-square" /> 
+</p> 
+
+<!-- LLM / Vector Stack --> 
+<p> 
+    <img src="https://img.shields.io/badge/LangChain-0.3+-1C3C3C?style=flat-square" /> 
+    <img src="https://img.shields.io/badge/LangGraph-0.2+-F59E0B?style=flat-square" /> 
+    <img src="https://img.shields.io/badge/Milvus-Vector%20DB-FF6B00?style=flat-square" /> 
+    <img src="https://img.shields.io/badge/ChromaDB-Vector%20Store-22C55E?style=flat-square" /> 
+    <img src="https://img.shields.io/badge/JWT-Authentication-111827?style=flat-square" /> 
+    <img src="https://img.shields.io/badge/RBAC-Role%20Guard-2563EB?style=flat-square" /> 
+</p> 
+
+---
 
 ## 🎯 项目背景与设计思路 Why This Project
 
