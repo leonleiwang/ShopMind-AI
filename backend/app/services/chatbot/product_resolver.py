@@ -1,3 +1,4 @@
+# 商品解析器：把自然语言购物意图转成结构化商品查询、属性过滤、候选排序和上下文引用选择。
 import re
 from dataclasses import dataclass, field
 from typing import Any
@@ -9,6 +10,7 @@ from app.services.chatbot.tools.product_search import ProductSearchTool
 
 @dataclass
 class ProductResolution:
+    # 商品解析结果，包含命中商品、候选集、排序规则、澄清标记和解释原因。
     product: dict | None
     candidates: list[dict] = field(default_factory=list)
     query: str = ""
@@ -22,6 +24,7 @@ class ProductResolution:
 
 @dataclass
 class ShoppingRequest:
+    # 用户购物请求的结构化表示，供规划、推荐、加购和结算链路复用。
     actions: list[str] = field(default_factory=list)
     product_query: str = ""
     exact_name_hint: str = ""
@@ -37,6 +40,7 @@ class ShoppingRequest:
 
 
 class ShoppingRequestParser:
+    # 规则解析器覆盖商品词、品类映射、属性同义词、排序、价格、数量和候选引用。
     PRODUCT_HINTS = [
         "游戏手机",
         "5G 手机",
@@ -197,6 +201,7 @@ class ShoppingRequestParser:
 
     @classmethod
     def parse(cls, message: str) -> ShoppingRequest:
+        # 解析自然语言购物请求，生成后续 Agent/Tool 可直接消费的结构化字段。
         text = message.strip()
         actions = cls._extract_actions(text)
         exact_name_hint = cls._extract_exact_name_hint(text)
@@ -226,6 +231,7 @@ class ShoppingRequestParser:
 
     @staticmethod
     def _extract_actions(text: str) -> list[str]:
+        # 抽取 search/recommend/add_to_cart/checkout 等动作，并处理“不下单”等否定表达。
         actions: list[str] = []
         lower_text = text.lower()
         negative_order = any(
@@ -252,6 +258,7 @@ class ShoppingRequestParser:
 
     @staticmethod
     def _extract_exact_name_hint(text: str) -> str:
+        # 捕捉 Pro/Lite/Plus 等精确型号，避免泛搜索覆盖用户明确选择。
         patterns = [
             r"(蓝牙耳机\s*(?:Pro|Lite|Plus|Max|Air|Ultra|Mini))",
             r"([A-Za-z0-9]+\s*(?:Pro|Lite|Plus|Max|Air|Ultra|Neo|X|S1|S2)\s*[\u4e00-\u9fa5A-Za-z0-9 ]{0,20})",
@@ -264,6 +271,7 @@ class ShoppingRequestParser:
 
     @classmethod
     def _extract_product_query(cls, text: str) -> str:
+        # 从商品提示词和常见购买句式中抽取核心商品 query。
         lower_text = text.lower()
         for hint in sorted(cls.PRODUCT_HINTS, key=len, reverse=True):
             if hint in text or hint.lower() in lower_text:
@@ -281,6 +289,7 @@ class ShoppingRequestParser:
 
     @classmethod
     def _extract_category(cls, text: str) -> str:
+        # 将自然语言品类词映射为内部标准 category。
         lower_text = text.lower()
         for hint, category in sorted(cls.CATEGORY_MAP.items(), key=lambda item: len(item[0]), reverse=True):
             if hint in text or hint.lower() in lower_text:
@@ -289,6 +298,7 @@ class ShoppingRequestParser:
 
     @classmethod
     def _extract_attribute_filters(cls, text: str) -> dict[str, Any]:
+        # 解析用途、降噪、音质、能效等属性约束。
         lower_text = text.lower()
         filters: dict[str, Any] = {}
         for words, value in cls.ATTRIBUTE_SYNONYMS:
@@ -298,6 +308,7 @@ class ShoppingRequestParser:
 
     @staticmethod
     def _extract_sort(text: str) -> str:
+        # 抽取排序偏好：低价、高价、库存优先或性价比优先。
         lower_text = text.lower()
         if any(word in lower_text for word in ["最便宜", "最低价", "价格最低", "便宜", "cheapest", "lowest price"]):
             return "price_asc"
@@ -311,6 +322,7 @@ class ShoppingRequestParser:
 
     @staticmethod
     def _extract_max_price(text: str) -> float | None:
+        # 提取“预算以内/低于/不超过”的最高价约束。
         match = re.search(r"(\d+(?:\.\d+)?)\s*(?:元|块)?\s*(?:以内|以下|之内)|(?:不超过|低于|小于)\s*(\d+(?:\.\d+)?)", text)
         if not match:
             return None
@@ -318,6 +330,7 @@ class ShoppingRequestParser:
 
     @staticmethod
     def _extract_min_price(text: str) -> float | None:
+        # 提取“以上/高于/不少于”的最低价约束。
         match = re.search(r"(\d+(?:\.\d+)?)\s*(?:元|块)?\s*(?:以上|起)|(?:高于|大于|不少于)\s*(\d+(?:\.\d+)?)", text)
         if not match:
             return None
@@ -325,11 +338,13 @@ class ShoppingRequestParser:
 
     @staticmethod
     def _extract_quantity(text: str) -> int:
+        # 提取购买数量，默认至少为 1。
         match = re.search(r"(\d+)\s*(?:件|个|台|只|副)", text)
         return max(1, int(match.group(1))) if match else 1
 
     @staticmethod
     def _extract_selection_index(text: str) -> int | None:
+        # 解析“第一个/第二个/第三个”等候选引用。
         mapping = {
             "第一个": 0,
             "第一款": 0,
@@ -354,9 +369,11 @@ class ProductResolver:
     PRODUCT_HINTS = ShoppingRequestParser.PRODUCT_HINTS
 
     def __init__(self, db: AsyncSession):
+        # 复用商品搜索工具，保证解析和普通搜索使用同一套数据库查询口径。
         self.search_tool = ProductSearchTool(db)
 
     async def resolve(self, message: str, previous_products: list[dict] | None = None) -> ProductResolution:
+        # 解析用户需求并返回最合适商品；优先处理上一轮候选引用，再回退到数据库搜索。
         params = self.extract_params(message)
         previous_products = previous_products or []
 
@@ -409,6 +426,7 @@ class ProductResolver:
 
     @classmethod
     def extract_params(cls, message: str) -> dict[str, Any]:
+        # 对外暴露轻量参数抽取，供 ChatService 搜索/推荐/规划逻辑复用。
         request = ShoppingRequestParser.parse(message)
         return {
             "actions": request.actions,
@@ -447,6 +465,7 @@ class ProductResolver:
 
     @staticmethod
     def _should_use_previous_products(message: str, params: dict[str, Any]) -> bool:
+        # 判断是否应从上一轮推荐候选中选择，而不是重新搜索商品库。
         text = message.lower()
         return bool(params["selection_index"] is not None) or any(
             word in text for word in ["这个", "这款", "该商品", "刚才", "推荐的", "这几个", "这三个", "这些", "其中", "previous", "last"]
@@ -454,12 +473,14 @@ class ProductResolver:
 
     @classmethod
     def _filter_by_attributes(cls, products: list[dict], filters: dict[str, Any]) -> list[dict]:
+        # 根据结构化属性过滤候选商品。
         if not filters:
             return products
         return [product for product in products if cls._matches_attribute_filters(product, filters)]
 
     @staticmethod
     def _matches_attribute_filters(product: dict, filters: dict[str, Any]) -> bool:
+        # 单商品属性匹配逻辑，同时参考 attributes、tags 和名称信号。
         attributes = product.get("attributes") or {}
         tags = set(product.get("tags") or [])
         name = str(product.get("name") or "")
@@ -475,6 +496,7 @@ class ProductResolver:
 
     @classmethod
     def _prioritize_attribute_matches(cls, products: list[dict], filters: dict[str, Any]) -> list[dict]:
+        # 对强场景属性做二次排序，例如游戏用途优先选择 gaming 信号更强的商品。
         if filters.get("use_cases") != "gaming":
             return products
 
@@ -488,6 +510,7 @@ class ProductResolver:
 
     @classmethod
     def _pick_exact_match(cls, products: list[dict], exact_name_hint: str) -> dict | None:
+        # 精确型号优先，防止“蓝牙耳机 Pro”被普通耳机结果冲掉。
         if not exact_name_hint:
             return None
         normalized_hint = cls._normalize_name(exact_name_hint)
@@ -501,10 +524,12 @@ class ProductResolver:
 
     @staticmethod
     def _normalize_name(value: str) -> str:
+        # 商品名归一化，忽略空白和大小写差异。
         return re.sub(r"\s+", "", str(value).strip().lower())
 
     @staticmethod
     def _deduplicate(products: list[dict | None]) -> list[dict]:
+        # 候选去重，优先使用商品 id，缺失时用名称兜底。
         seen: set[Any] = set()
         unique: list[dict] = []
         for product in products:
@@ -520,6 +545,7 @@ class ProductResolver:
 
     @staticmethod
     def _rank(products: list[dict], sort_by: str) -> list[dict]:
+        # 根据用户偏好对候选排序：价格、库存或简化性价比。
         if sort_by == "price_asc":
             return sorted(products, key=lambda product: float(product.get("price") or 0))
         if sort_by == "price_desc":
@@ -542,6 +568,7 @@ class ProductResolver:
 
     @staticmethod
     def _select(products: list[dict], index: int) -> dict | None:
+        # 按候选序号选择商品，越界时返回 None 触发澄清。
         if index < 0 or index >= len(products):
             return None
         return products[index]
@@ -554,6 +581,7 @@ class ProductResolver:
         attribute_filters: dict[str, Any] | None = None,
         exact_name_hint: str = "",
     ) -> str:
+        # 生成商品选择解释，帮助用户理解为什么选中该候选。
         if not product:
             return "未找到符合条件的商品。"
         if exact_name_hint:

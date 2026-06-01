@@ -1,3 +1,4 @@
+# HITL 审批服务：统一管理高风险下单、AI 运营草稿、人工审批、执行落库和审计日志。
 import hashlib
 import json
 from typing import Any
@@ -27,6 +28,7 @@ class ApprovalService:
         product_ids: list[int] | None = None,
         keyword: str | None = None,
     ) -> ApprovalRequest:
+        # 根据购物车子集创建下单审批，保存风险等级、确认级别和订单快照。
         cart_items = await CartService.get_cart_subset(db, user_id, product_ids=product_ids, keyword=keyword)
         if not cart_items:
             raise ValueError("Cart is empty")
@@ -76,6 +78,7 @@ class ApprovalService:
     # 2. [反思5c-订单风险分层] LOW：Chat 普通确认 / MEDIUM：Chat 二次确认 / HIGH：Governance 后台人工审核
     @staticmethod
     def evaluate_order_risk(cart_items: list[dict], total: float) -> dict[str, Any]:
+        # 订单风险分层：普通确认、二次确认和治理后台人工审核三档。
         reasons: list[str] = []
         risk_level = "low"
         approval_channel = "chat"
@@ -125,6 +128,7 @@ class ApprovalService:
         generated_value: Any,
         metadata: dict[str, Any] | None = None,
     ) -> ApprovalRequest:
+        # AI 生成的商品描述、定价建议和营销文案先进入草稿审批，不直接改线上商品。
         if action_type not in ApprovalService.PRODUCT_FIELD_ACTIONS:
             raise ValueError("Unsupported product draft action")
 
@@ -171,6 +175,7 @@ class ApprovalService:
         note: str = "",
         payload_override: dict[str, Any] | None = None,
     ) -> ApprovalRequest | None:
+        # 审批通过后执行对应业务动作，并写入 approved 审计事件。
         approval = await ApprovalService.get(db, approval_id)
         if not approval or approval.user_id != user_id:
             return None
@@ -203,6 +208,7 @@ class ApprovalService:
 
     @staticmethod
     async def reject(db: AsyncSession, approval_id: int, user_id: int, note: str = "") -> ApprovalRequest | None:
+        # 拒绝审批时仅更新状态和审计，不执行原业务动作。
         approval = await ApprovalService.get(db, approval_id)
         if not approval or approval.user_id != user_id:
             return None
@@ -218,6 +224,7 @@ class ApprovalService:
 
     @staticmethod
     async def get(db: AsyncSession, approval_id: int) -> ApprovalRequest | None:
+        # 读取单个审批请求。
         result = await db.execute(select(ApprovalRequest).where(ApprovalRequest.id == approval_id))
         return result.scalar_one_or_none()
 
@@ -228,6 +235,7 @@ class ApprovalService:
         status: str | None = None,
         limit: int = 50,
     ) -> list[ApprovalRequest]:
+        # 查询用户审批列表，支撑 Governance 页面和 Chat 审批状态展示。
         query = select(ApprovalRequest).where(ApprovalRequest.user_id == user_id)
         if status:
             query = query.where(ApprovalRequest.status == status)
@@ -237,6 +245,7 @@ class ApprovalService:
 
     @staticmethod
     async def list_audit_logs(db: AsyncSession, user_id: int, limit: int = 80) -> list[ApprovalAuditLog]:
+        # 查询用户审批审计日志，保留请求、通过、拒绝和执行信息。
         query = (
             select(ApprovalAuditLog)
             .where(ApprovalAuditLog.user_id == user_id)
@@ -248,6 +257,7 @@ class ApprovalService:
 
     @staticmethod
     async def _execute_order_approval(db: AsyncSession, approval: ApprovalRequest, user_id: int) -> dict[str, Any]:
+        # 执行已通过的下单审批，防止 Agent 在未授权时直接创建订单。
         checkout_scope = (approval.payload or {}).get("checkout_scope") or {}
         product_ids = checkout_scope.get("product_ids") or None
         keyword = checkout_scope.get("keyword") or None
@@ -261,6 +271,7 @@ class ApprovalService:
 
     @staticmethod
     async def _apply_product_draft(db: AsyncSession, approval: ApprovalRequest) -> dict[str, Any]:
+        # 将通过审批的 AI 运营草稿写回商品字段。
         payload = approval.payload or {}
         product_id = int(payload.get("product_id"))
         field = ApprovalService.PRODUCT_FIELD_ACTIONS[approval.action_type]
@@ -278,6 +289,7 @@ class ApprovalService:
         event: str,
         details: dict[str, Any],
     ) -> None:
+        # 审批审计统一入口，记录 actor、事件类型和结构化细节。
         db.add(
             ApprovalAuditLog(
                 approval_id=approval_id,
@@ -289,10 +301,12 @@ class ApprovalService:
 
     @staticmethod
     def _cart_total(cart_items: list[dict]) -> float:
+        # 根据购物车快照计算审批金额。
         return round(sum(float(item["unit_price"]) * int(item["quantity"]) for item in cart_items), 2)
 
     @staticmethod
     def _cart_signature(cart_items: list[dict]) -> str:
+        # 生成购物车签名，帮助识别审批后购物车是否发生变化。
         normalized = [
             {
                 "product_id": item.get("product_id"),
@@ -306,6 +320,7 @@ class ApprovalService:
 
     @staticmethod
     def _order_summary(payload: dict[str, Any]) -> str:
+        # 生成审批卡片中的订单摘要，突出商品、数量和总金额。
         item_lines = [
             f"- {item['product_name']} x {item['quantity']} @ {item['unit_price']}"
             for item in payload.get("items", [])
@@ -322,6 +337,7 @@ class ApprovalService:
 
     @staticmethod
     def _order_summary_title(payload: dict[str, Any]) -> str:
+        # 根据确认级别生成更醒目的订单审批标题。
         if payload.get("approval_channel") == "governance":
             return "Manual review required before checkout"
         if payload.get("confirmation_level") == "strong_confirm":
@@ -332,6 +348,7 @@ class ApprovalService:
 
     @staticmethod
     def _product_draft_summary(payload: dict[str, Any]) -> str:
+        # 生成 AI 商品运营草稿审批摘要。
         return (
             f"AI draft approval required for {payload.get('product_name')} "
             f"({payload.get('field')}). Review, edit, approve, or reject before publishing."

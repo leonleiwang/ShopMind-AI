@@ -1,5 +1,6 @@
 'use client';
 
+// 角色导航条：根据当前用户角色动态展示购物者、商家、客服和 AgentOps 模块入口。
 import { canAccess, roleLabels } from '@/services/rbac';
 import { useAuthStore } from '@/store/auth';
 import Link from 'next/link';
@@ -41,6 +42,7 @@ const navGroups = [
 ];
 
 export default function RoleNav() {
+  // 未加载用户时隐藏导航；加载后按 RBAC 过滤可见链接。
   const user = useAuthStore((s) => s.user);
   if (!user) return null;
 

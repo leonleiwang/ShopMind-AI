@@ -1,3 +1,4 @@
+# Cart/Order Agent：处理购物车和订单类单步意图，并把真实下单转成 HITL 审批。
 # backend/app/services/chatbot/agents/cart_order.py
 import json
 import re
@@ -8,10 +9,12 @@ from app.services.chatbot.tools.caller import ToolCaller
 
 class CartOrderAgent:
     def __init__(self, tool_caller: ToolCaller):
+        # 复用统一 ToolCaller，购物车和订单工具都走观测链路。
         self.llm = llm_gateway
         self.tool_caller = tool_caller
 
     async def handle(self, user_message: str, intent: str):
+        # 根据 cart/order intent 执行查看、加购、清空、下单审批或订单查询。
         if intent == "cart":
             if "清空" in user_message:
                 await self.tool_caller.invoke("clear_cart")
@@ -64,6 +67,7 @@ class CartOrderAgent:
 
     @staticmethod
     def _format_order_approval(result: dict) -> str:
+        # 把下单审批结果转成用户可读的风险说明。
         risk_reasons = ", ".join(result.get("risk_reasons") or [])
         if result.get("approval_channel") == "governance":
             return (
@@ -85,6 +89,7 @@ class CartOrderAgent:
 
     @staticmethod
     def _approval_payload(result: dict) -> dict:
+        # 提取前端审批卡片字段。
         return {
             "id": result.get("approval_id"),
             "action_type": "place_order",
@@ -99,6 +104,7 @@ class CartOrderAgent:
 
     @staticmethod
     def _extract_cart_params(user_message: str) -> dict:
+        # 从自然语言中抽取 product_id 和 quantity。
         product_match = re.search(r"(?:商品|product|id)\s*#?\s*(\d+)|#\s*(\d+)", user_message, re.IGNORECASE)
         quantity_match = re.search(r"(?:数量|x|×|\*)\s*(\d+)|(\d+)\s*(?:件|个)", user_message, re.IGNORECASE)
         params = {"quantity": 1}

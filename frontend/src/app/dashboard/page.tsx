@@ -53,6 +53,7 @@ const intentKeys = ['search', 'recommend', 'cart', 'order', 'plan', 'compare'];
 const toolKeys = ['search_products', 'compare_products', 'add_to_cart', 'remove_from_cart', 'clear_cart', 'place_order'];
 
 export default function OpsDashboardPage() {
+  // 工程观测页仅对 admin 开放。
   return (
     <RoleGuard allowed={['admin']}>
       <OpsDashboardContent />
@@ -61,6 +62,7 @@ export default function OpsDashboardPage() {
 }
 
 function OpsDashboardContent() {
+  // 聚合 Agent 指标、商品运营任务、订单 WebSocket 和最近事件。
   const [metrics, setMetrics] = useState<Metrics>(emptyMetrics);
   const [products, setProducts] = useState<Product[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
@@ -86,6 +88,7 @@ function OpsDashboardContent() {
   const toolCounts = useMemo(() => withDefaultKeys(metrics.tool_counts, toolKeys), [metrics.tool_counts]);
 
   const loadDashboard = async () => {
+    // 周期性加载后端观测快照、商品列表和订单列表。
     try {
       const [metricsRes, productsRes, ordersRes] = await Promise.all([
         api.get('/chat/metrics'),
@@ -138,6 +141,7 @@ function OpsDashboardContent() {
   }, [latestOrderId, token]);
 
   const runTask = async (task: () => Promise<string>) => {
+    // 执行 AI 运营任务并把结果追加到任务事件流。
     try {
       const message = await task();
       setTaskEvents((current) => [message, ...current].slice(0, 5));
@@ -322,6 +326,7 @@ function OpsDashboardContent() {
 }
 
 function MetricCard({ label, value, caption }: { label: string; value: string; caption: string }) {
+  // 工程指标卡片。
   return (
     <article className="rounded-lg border border-slate-200 bg-white p-5">
       <div className="text-xs uppercase tracking-[0.18em] text-slate-500">{label}</div>
@@ -332,6 +337,7 @@ function MetricCard({ label, value, caption }: { label: string; value: string; c
 }
 
 function Panel({ title, eyebrow, children }: { title: string; eyebrow: string; children: ReactNode }) {
+  // 仪表盘通用区块容器。
   return (
     <section className="rounded-lg border border-slate-200 bg-white p-5">
       <div className="mb-4">
@@ -344,6 +350,7 @@ function Panel({ title, eyebrow, children }: { title: string; eyebrow: string; c
 }
 
 function KeyValueList({ data, empty }: { data: Record<string, number>; empty: string }) {
+  // 计数字典展示组件，用于 intent/tool/LLM 统计。
   const entries = Object.entries(data).sort((a, b) => b[1] - a[1]);
   const max = Math.max(...entries.map(([, value]) => value), 1);
 
@@ -376,6 +383,7 @@ function ProductOpsRow({
   onPricing: () => void;
   onMarketing: () => void;
 }) {
+  // 商品运营行：触发描述、定价和营销文案 AI 草稿生成。
   return (
     <article className="grid gap-4 rounded-lg border border-slate-200 bg-[#fbfcfe] p-4 lg:grid-cols-[1fr_auto]">
       <div>
@@ -407,6 +415,7 @@ function ProductOpsRow({
 }
 
 function TaskButton({ children, onClick }: { children: ReactNode; onClick: () => void }) {
+  // 运营任务按钮。
   return (
     <button
       className="rounded-lg border border-[#9bd7e7] px-3 py-2 text-xs font-semibold text-[#12445f] transition hover:border-sky-300/60 hover:bg-[#1d6389]/10"
@@ -418,6 +427,7 @@ function TaskButton({ children, onClick }: { children: ReactNode; onClick: () =>
 }
 
 function EventList({ events, empty, tone }: { events: string[]; empty: string; tone: 'cyan' | 'emerald' }) {
+  // WebSocket 与任务执行事件列表。
   if (!events.length) return <EmptyBox title="暂无事件" body={empty} />;
   const color = tone === 'cyan' ? 'text-[#12445f] border-[#cfe7ef]' : 'text-emerald-700 border-emerald-200';
   return (
@@ -435,6 +445,7 @@ function EventList({ events, empty, tone }: { events: string[]; empty: string; t
 }
 
 function EventCard({ event }: { event: Record<string, unknown> }) {
+  // 最近 AgentOps 事件卡片。
   const type = String(event.type ?? 'event');
   const ok = event.ok;
   return (
@@ -453,6 +464,7 @@ function EventCard({ event }: { event: Record<string, unknown> }) {
 }
 
 function EmptyBox({ title, body }: { title: string; body: string }) {
+  // 空状态提示。
   return (
     <div className="rounded-lg border border-dashed border-slate-300 bg-[#fbfcfe] p-4">
       <p className="text-sm font-medium text-slate-700">{title}</p>
@@ -462,6 +474,7 @@ function EmptyBox({ title, body }: { title: string; body: string }) {
 }
 
 function withDefaultKeys(data: Record<string, number>, keys: string[]) {
+  // 为关键指标补零，保证图表/列表稳定展示。
   return keys.reduce<Record<string, number>>(
     (result, key) => {
       result[key] = data[key] ?? 0;
@@ -472,6 +485,7 @@ function withDefaultKeys(data: Record<string, number>, keys: string[]) {
 }
 
 function formatPricing(value: string) {
+  // 定价建议字段格式化。
   try {
     const parsed = JSON.parse(value) as { suggested_price?: number; reason?: string };
     if (parsed.suggested_price) {
@@ -484,6 +498,7 @@ function formatPricing(value: string) {
 }
 
 function formatUptime(seconds: number) {
+  // 将秒级运行时长格式化为秒/分钟/小时。
   if (seconds < 60) return `${seconds}s`;
   const minutes = Math.floor(seconds / 60);
   if (minutes < 60) return `${minutes}m`;

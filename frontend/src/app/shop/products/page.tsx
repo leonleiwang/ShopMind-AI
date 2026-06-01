@@ -1,5 +1,6 @@
 'use client';
 
+// 商品浏览页：购物者侧商品列表、关键词搜索、品类筛选和分页展示。
 import RoleGuard from '@/components/auth/RoleGuard';
 import RoleNav from '@/components/auth/RoleNav';
 import { api } from '@/services/api';
@@ -21,6 +22,7 @@ type Product = {
 const PAGE_SIZE = 12;
 
 export default function ProductsPage() {
+  // 商品浏览允许 shopper/admin 查看。
   return (
     <RoleGuard allowed={['shopper', 'admin']}>
       <ProductsContent />
@@ -29,6 +31,7 @@ export default function ProductsPage() {
 }
 
 function ProductsContent() {
+  // 维护商品列表、搜索关键词、品类筛选和分页状态。
   const [products, setProducts] = useState<Product[]>([]);
   const [keyword, setKeyword] = useState('');
   const [category, setCategory] = useState('全部');
@@ -65,6 +68,7 @@ function ProductsContent() {
   const visibleProducts = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
   const selectCategory = (nextCategory: string) => {
+    // 切换品类时重置分页，避免空页。
     setCategory(nextCategory);
     setPage(1);
   };

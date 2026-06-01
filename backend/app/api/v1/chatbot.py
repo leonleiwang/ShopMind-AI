@@ -1,3 +1,4 @@
+# Chat API：提供 SSE 流式对话、conversation_id 延续和 AgentOps 指标快照。
 """
 聊天 API 接口（SSE 流式）Chat API 现在支持 conversation_id，SSE 断链/异常时会返回降级消息，而不是直接炸给用户
 """
@@ -18,6 +19,7 @@ from app.services.observability import AgentObservability
 router = APIRouter()
 
 class ChatRequest(BaseModel):
+    # 前端提交的用户消息和可选会话 id。
     message: str
     conversation_id: str | None = None
 
@@ -28,7 +30,9 @@ async def chatbot_stream(
     current_user = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
+    # SSE 主入口：逐步返回 intent/action/observation/final 等 Agent 事件。
     async def event_generator():
+        # 断开连接或异常时优雅结束，并返回可读降级消息。
         service = ChatService(db, current_user.id, chat_input.conversation_id)
         try:
             async for event in service.process_message(chat_input.message):
@@ -51,4 +55,5 @@ async def chatbot_stream(
 
 @router.get("/metrics")
 async def chatbot_metrics(current_user = Depends(get_current_user)):
+    # 返回对话链路观测快照，供工程观测页展示。
     return AgentObservability.snapshot()

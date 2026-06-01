@@ -1,3 +1,4 @@
+# 订单 API：提供购物车、下单审批、订单 CRUD 状态和订单 WebSocket 实时通知。
 """
 API 路由
 """
@@ -24,13 +25,16 @@ router = APIRouter()
 
 class OrderWebSocketManager:
     def __init__(self):
+        # 按 order_id 维护 WebSocket 连接列表。
         self.connections: dict[int, list[WebSocket]] = {}
 
     async def connect(self, order_id: int, websocket: WebSocket):
+        # 建立订单状态 WebSocket 连接。
         await websocket.accept()
         self.connections.setdefault(order_id, []).append(websocket)
 
     def disconnect(self, order_id: int, websocket: WebSocket):
+        # 移除断开的 WebSocket 连接，并清理空列表。
         sockets = self.connections.get(order_id, [])
         if websocket in sockets:
             sockets.remove(websocket)
@@ -38,6 +42,7 @@ class OrderWebSocketManager:
             del self.connections[order_id]
 
     async def broadcast(self, order_id: int, payload: dict):
+        # 向订阅某个订单的连接广播状态变化，自动清理失效连接。
         stale: list[WebSocket] = []
         for websocket in self.connections.get(order_id, []):
             try:
@@ -52,6 +57,7 @@ order_ws_manager = OrderWebSocketManager()
 
 
 async def _get_user_from_ws_token(token: str | None, db: AsyncSession) -> User | None:
+    # WebSocket 无法走普通 Depends，这里手动解析 JWT 获取用户。
     if not token:
         return None
     try:
@@ -71,6 +77,7 @@ async def add_to_cart(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
+    # HTTP 加购入口。
     cart_item = await CartService.add_to_cart(db, current_user.id, item.product_id, item.quantity)
     return {"message": "Added to cart", "cart_item_id": cart_item.id}
 
@@ -79,6 +86,7 @@ async def view_cart(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
+    # 查看当前用户购物车。
     return await CartService.get_cart(db, current_user.id)
 
 @router.delete("/cart", response_model=dict)
@@ -86,6 +94,7 @@ async def clear_cart(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
+    # 清空当前用户购物车。
     await CartService.clear_cart(db, current_user.id)
     return {"message": "Cart cleared"}
 
@@ -95,6 +104,7 @@ async def request_checkout_approval(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
+    # 下单前先生成审批请求，避免直接执行高风险订单。
     try:
         approval = await ApprovalService.create_order_approval(db, current_user.id)
     except ValueError as e:
@@ -107,6 +117,7 @@ async def place_order(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
+    # 直接下单接口保留给基础购物流，Agent 链路默认优先使用审批接口。
     try:
         order = await OrderService.create_order(db, current_user.id)
     except ValueError as e:
@@ -122,6 +133,7 @@ async def list_orders(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
+    # 查询当前用户订单列表。
     orders = await OrderService.list_user_orders(db, current_user.id)
     return orders
 
@@ -131,6 +143,7 @@ async def get_order(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
+    # 查询当前用户自己的订单详情。
     order = await OrderService.get_order(db, order_id)
     if not order or order.user_id != current_user.id:
         raise HTTPException(status_code=404, detail="Order not found")
@@ -143,6 +156,7 @@ async def update_order_status(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
+    # 更新订单状态后通过 WebSocket 广播给订阅客户端。
     existing_order = await OrderService.get_order(db, order_id)
     if not existing_order or existing_order.user_id != current_user.id:
         raise HTTPException(status_code=404, detail="Order not found")
@@ -158,6 +172,7 @@ async def update_order_status(
 
 @router.websocket("/ws/{order_id}")
 async def order_status_ws(websocket: WebSocket, order_id: int, token: str | None = None):
+    # 订单状态 WebSocket：鉴权后先发送快照，再等待后续广播。
     async with AsyncSessionLocal() as db:
         user = await _get_user_from_ws_token(token, db)
         if user is None:

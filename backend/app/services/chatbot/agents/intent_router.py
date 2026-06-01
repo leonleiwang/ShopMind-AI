@@ -1,4 +1,5 @@
 """意图路由 Agent。"""
+# Intent Router Agent：优先用规则稳定识别高频购物意图，必要时再调用 LLM 输出置信度和证据。
 
 # backend/app/services/chatbot/agents/intent_router.py
 import json
@@ -22,14 +23,17 @@ class RouteDecision:
 
 class IntentRouterAgent:
     def __init__(self, tool_schemas: list[dict] | None = None):
+        # 注入工具 schema 和业务知识检索器，用于 LLM 路由提示词。
         self.llm = llm_gateway
         self.tool_schemas = tool_schemas or []
         self.knowledge = BusinessKnowledgeRetriever()
 
     async def route(self, user_message: str) -> str:
+        # 兼容旧调用方的轻量入口，只返回 intent。
         return (await self.route_decision(user_message)).intent
 
     async def route_decision(self, user_message: str) -> RouteDecision:
+        # 路由主入口：先走确定性关键词规则，再走 LLM + fallback JSON。
         deterministic_intent = self._route_by_keywords(user_message)
         if deterministic_intent:
             return RouteDecision(
@@ -70,6 +74,7 @@ class IntentRouterAgent:
 
     @staticmethod
     def _route_by_keywords(user_message: str) -> str | None:
+        # 关键词路由覆盖搜索、推荐、对比、购物车、下单和复杂规划高频场景。
         text = user_message.strip()
         lower_text = text.lower()
 
@@ -119,4 +124,5 @@ class IntentRouterAgent:
 
     @staticmethod
     def _looks_ambiguous(user_message: str) -> bool:
+        # 判断是否属于泛化求助/问题不清晰场景，触发澄清而不是误调用工具。
         return any(word in user_message for word in ["不好用", "不会用", "不能用", "怎么办", "有问题"])

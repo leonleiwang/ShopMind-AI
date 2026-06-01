@@ -1,3 +1,4 @@
+# 对话 Agent 主编排服务：串联意图路由、澄清、工具调用、规划执行、HITL 审批、客服转人工与 SSE 事件输出。
 """
 对话服务（核心）
 """
@@ -39,6 +40,7 @@ from app.services.support_service import HumanHandoffService, SupportTicketServi
 
 class ChatService:
     def __init__(self, db: AsyncSession, user_id: int, conversation_id: str | None = None):
+        # 初始化单个用户会话的 Agent 工作台：注册工具、路由器、规划器、商品解析器和各专项 Agent。
         self.db = db
         self.user_id = user_id
         self.state = conversation_store.get(user_id, conversation_id)
@@ -56,6 +58,7 @@ class ChatService:
         self.cart_order = CartOrderAgent(self.tool_caller)
 
     def _register_tools(self):
+        # 注册 MCP 风格工具，使搜索、对比、购物车、下单和订单查询都走统一 ToolCaller。
         self.tool_registry.register(ProductSearchTool(self.db))
         self.tool_registry.register(ProductCompareTool(self.db))
         self.tool_registry.register(AddToCartTool(self.db, self.user_id))
@@ -66,6 +69,7 @@ class ChatService:
         self.tool_registry.register(CheckOrderTool(self.db))
 
     async def process_message(self, user_message: str) -> AsyncGenerator[dict, None]:
+        # 对话主流程：按 intent -> guardrail/clarification -> tool/agent -> final event 输出完整链路。
         self._remember("user", user_message)
 
         approval_response = await self._handle_approval_command(user_message)
@@ -215,10 +219,12 @@ class ChatService:
 
     @staticmethod
     def _event(event: str, payload: dict) -> dict:
+        # 统一封装 SSE 事件，并同步写入观测计数。
         AgentObservability.record_event(event)
         return {"event": event, "data": json.dumps(payload, ensure_ascii=False)}
 
     async def _handle_search(self, user_message: str, params: dict | None = None):
+        # 搜索意图执行链路：提取参数、调用商品搜索工具、缓存候选商品并流式返回结果。
         # 1. 提取搜索参数
         params = params or await self._extract_search_params(user_message)
 
@@ -236,6 +242,7 @@ class ChatService:
         yield self._event("final", {"content": search_result["text"], "conversation_id": self.state.conversation_id})
 
     async def _extract_search_params(self, user_message: str) -> dict:
+        # LLM 参数抽取失败时回退到规则解析，保证商品搜索链路可用。
         fallback = self._extract_search_params_by_rules(user_message)
         extract_prompt = prompt_manager.render("search_params", user_message=user_message)
         try:
@@ -247,6 +254,7 @@ class ChatService:
 
     @staticmethod
     def _format_clarification(clarification: dict) -> str:
+        # 将澄清 Agent 的结构化结果转成用户可读的问题和选项。
         question = clarification.get("question") or "我需要再确认一个关键信息，才能继续处理。"
         options = clarification.get("options") or []
         if not options:
@@ -255,16 +263,19 @@ class ChatService:
 
     @staticmethod
     def _human_handoff_text() -> str:
+        # 工具链路降级时的统一转人工提示，避免给出不可靠结果。
         return "当前智能客服链路繁忙或工具调用失败，我先为你保留上下文。你可以稍后重试，或转人工继续处理。"
 
     @staticmethod
     def _should_auto_create_handoff(evaluation: dict) -> bool:
+        # 判断是否自动创建客服工单：高风险类别直接转，普通问题只在明确风险时转。
         reasons = set(evaluation.get("reasons") or [])
         if evaluation.get("category") != "general":
             return True
         return bool(reasons & {"negative_sentiment", "tool_failed", "repeated_unresolved_followup"})
 
     async def _create_handoff_ticket(self, request: HandoffEvaluationRequest, evaluation: dict) -> dict:
+        # 将对话上下文和风险评估结果沉淀为客服工单，形成 Chat 到 Contact Center 的闭环。
         ticket, _ = await SupportTicketService.create_from_handoff(
             self.db,
             customer_id=self.user_id,
@@ -275,6 +286,7 @@ class ChatService:
         return SupportTicketService.serialize_ticket(ticket)
 
     async def _create_tool_failure_handoff(self, user_message: str) -> None:
+        # 工具异常时尽力创建降级工单，避免用户问题在链路失败后丢失。
         request = HandoffEvaluationRequest(
             message=user_message,
             conversation_id=self.state.conversation_id,
@@ -292,6 +304,7 @@ class ChatService:
 
     @staticmethod
     def _format_handoff_created(ticket_id: str, reasons: list[str]) -> str:
+        # 转人工成功后的用户可见回执，暴露 ticket_id 和转人工原因。
         reason_text = ", ".join(reasons) if reasons else "manual_review"
         return (
             "我已经为这次咨询创建客服工单，并保留当前会话上下文。\n"
@@ -302,6 +315,7 @@ class ChatService:
 
     @staticmethod
     def _parse_json_object(content: str) -> dict:
+        # 兼容 LLM 返回 markdown code fence 的 JSON 对象解析。
         text = content.strip()
         if text.startswith("```"):
             text = text.strip("`")
@@ -312,6 +326,7 @@ class ChatService:
 
     @staticmethod
     def _extract_search_params_by_rules(user_message: str) -> dict:
+        # 规则参数抽取覆盖品类、关键词和价格区间，作为 LLM 抽取的稳定兜底。
         text = user_message.strip()
         params: dict[str, Any] = {"keyword": text, "category": None, "max_price": None, "min_price": None}
 
@@ -366,6 +381,7 @@ class ChatService:
 
     @staticmethod
     def _normalize_search_params(params: dict, fallback: dict) -> dict:
+        # 合并 LLM 和规则抽取结果，过滤空值、异常品类和不可靠数值。
         invalid_values = {"", "0", "none", "null", "不限", "全部", "任意"}
 
         def clean_text(value: Any) -> str:
@@ -398,6 +414,7 @@ class ChatService:
 
     @staticmethod
     def _wants_alternative_recommendation(user_message: str) -> bool:
+        # 判断用户是否在追问“换一批/其他推荐”，用于排除上一轮已推荐商品。
         text = user_message.lower()
         terms = (
             "\u5176\u4ed6",
@@ -414,6 +431,7 @@ class ChatService:
 
     @staticmethod
     def _clean_number(primary: Any, fallback: Any) -> float | None:
+        # 数值字段清洗：优先使用 LLM 结果，失败时使用规则兜底。
         for value in (primary, fallback):
             if value in (None, "", "null", "None"):
                 continue
@@ -424,6 +442,7 @@ class ChatService:
         return None
 
     async def _handle_plan(self, user_message: str):
+        # 复杂任务规划执行器：按步骤串联搜索、解析商品、加购、下单、推荐等工具。
         plan = await self.planning.create_plan(user_message)
         if not plan:
             yield self._event("final", {"content": "抱歉，我没有理解你的要求，请再试一次。"})
@@ -532,6 +551,7 @@ class ChatService:
 
     @staticmethod
     def _format_step_result(intent: str, result: Any, params: dict) -> str:
+        # 将每一步工具执行结果压缩成用户可读 observation，并保留审批提示。
         if isinstance(result, str):
             return result
         if isinstance(result, dict) and "error" in result:
@@ -588,6 +608,7 @@ class ChatService:
 
     @staticmethod
     def _serialize_resolution(resolution: ProductResolution) -> dict:
+        # 商品解析结果序列化，保留候选集、命中商品和澄清原因。
         if resolution.needs_clarification or not resolution.product:
             return {
                 "error": resolution.reason or "没有找到可加入购物车的商品，请补充品牌、预算或品类。",
@@ -603,6 +624,7 @@ class ChatService:
         }
 
     async def _recommend_products(self, user_message: str, params: dict) -> dict:
+        # 推荐链路优先使用商品解析器处理属性约束，再回退到推荐 Agent。
         request = ShoppingRequestParser.parse(user_message)
         if request.requires_product_resolution or request.attribute_filters:
             resolution = await self.product_resolver.resolve(user_message, self.state.last_products)
@@ -616,6 +638,7 @@ class ChatService:
 
     @staticmethod
     def _format_recommendation_text(products: list[dict]) -> str:
+        # 将结构化推荐列表转成简洁自然语言回复。
         if not products:
             return "没有找到合适的推荐商品。"
         return "为你推荐以下商品：\n" + "\n".join(
@@ -624,6 +647,7 @@ class ChatService:
 
     @staticmethod
     def _approval_payload_from_tool_result(result: dict) -> dict:
+        # 从下单工具结果中提取前端审批卡片所需字段。
         return {
             "id": result.get("approval_id"),
             "action_type": "place_order",
@@ -637,6 +661,7 @@ class ChatService:
         }
 
     async def _handle_referenced_cart_add(self, user_message: str) -> str | None:
+        # 支持“把刚才推荐的第一个加入购物车”这类上下文引用加购。
         if not self._looks_like_referenced_cart_add(user_message) or not self.state.last_products:
             return None
 
@@ -654,6 +679,7 @@ class ChatService:
 
     @staticmethod
     def _looks_like_referenced_cart_add(user_message: str) -> bool:
+        # 用轻量关键词判断是否属于引用上一轮推荐的加购请求。
         text = user_message.lower()
         add_terms = ("加入", "添加", "加购", "放进", "加进", "add to cart", "put in cart")
         reference_terms = ("这个", "这款", "刚才", "推荐的", "上一个", "第一个", "第二个", "第三个", "this", "that", "recommended")
@@ -661,6 +687,7 @@ class ChatService:
 
     @staticmethod
     def _reference_index(user_message: str) -> int:
+        # 从自然语言中解析“第几个”候选商品，默认选择第一个。
         text = user_message.lower()
         if any(term in text for term in ("第二", "第2", "second")):
             return 1
@@ -670,16 +697,19 @@ class ChatService:
 
     @staticmethod
     def _select_referenced_product(products: list[dict], index: int) -> dict | None:
+        # 从上一轮候选集中按序号选择有效商品，避免无 id 项进入购物车。
         candidates = [product for product in products if isinstance(product, dict) and product.get("id")]
         if index < 0 or index >= len(candidates):
             return None
         return candidates[index]
 
     def _remember(self, role: str, content: str) -> None:
+        # 保存对话记忆，用于后续推荐、对比、加购引用和客服转人工上下文。
         self.state.add_message(role, content)
         conversation_store.save(self.state)
 
     async def _handle_approval_command(self, user_message: str) -> str | None:
+        # 在 Chat 内处理 approve/reject 指令，但治理后台审批仍保持强约束。
         match = re.search(r"(?:approval\s*id|审批|确认|approve|reject|拒绝)\D*(\d+)", user_message, re.IGNORECASE)
         if not match:
             return None
@@ -708,11 +738,13 @@ class ChatService:
 
     @staticmethod
     def _needs_low_confidence_clarification(confidence: float, intent: str) -> bool:
+        # 低置信度可执行意图先澄清，防止 Agent 误触发加购、下单等有副作用操作。
         executable_intents = {"search", "recommend", "compare", "cart", "order", "plan"}
         return intent in executable_intents and confidence < settings.HITL_INTENT_CONFIDENCE_THRESHOLD
 
     @staticmethod
     def _format_low_confidence_clarification(intent: str, confidence: float) -> str:
+        # 低置信度澄清文案同时暴露 route 和 confidence，便于用户理解系统为何暂停。
         return (
             "我对你的意图还不够确定，先不执行工具。\n"
             f"Current route: {intent} (confidence {confidence:.2f})\n"

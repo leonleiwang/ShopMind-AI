@@ -1,3 +1,4 @@
+# 客服联络中心服务：负责转人工判定、AI 坐席辅助、工单生命周期、SLA、事件日志和订单快照。
 from __future__ import annotations
 
 import uuid
@@ -27,6 +28,7 @@ class LLMRoutingService:
         confidence: float = 1.0,
         message: str = "",
     ) -> str:
+        # 根据意图、风险、类别和置信度选择 RAG、SQL cache、Agent workflow 或人工接管。
         text = message.lower()
         if risk_level == "high" or category in {"complaint", "legal", "chargeback"}:
             return "human_handoff"
@@ -42,6 +44,7 @@ class LLMRoutingService:
 
 
 class HumanHandoffService:
+    # 风险词与类别词用于确定性转人工评估，保证无模型环境下也能稳定运行。
     NEGATIVE_TERMS = {
         "angry",
         "terrible",
@@ -67,6 +70,7 @@ class HumanHandoffService:
 
     @classmethod
     def evaluate(cls, request: HandoffEvaluationRequest) -> dict[str, Any]:
+        # 转人工核心评估：沉淀 reasons、risk_level、priority 和 routing_strategy。
         reasons: list[str] = []
         message = request.message.lower()
         category = request.category or cls.detect_category(request.message)
@@ -110,6 +114,7 @@ class HumanHandoffService:
 
     @classmethod
     def detect_category(cls, message: str) -> str:
+        # 从用户消息中识别退款、投诉、法务、物流等客服工单类别。
         lower_message = message.lower()
         for term, category in cls.RISK_TERMS.items():
             if term in message or term in lower_message:
@@ -122,6 +127,7 @@ class HumanHandoffService:
 
     @staticmethod
     def priority_for(risk_level: str, reasons: list[str]) -> str:
+        # 根据风险等级和原因映射客服优先级，供 SLA 和队列排序使用。
         if risk_level == "high" or "legal_risk" in reasons or "complaint_risk" in reasons:
             return "urgent"
         if risk_level == "medium" or reasons:
@@ -141,6 +147,7 @@ class AgentAssistService:
         routing_strategy: str,
         order_snapshot: dict[str, Any] | None = None,
     ) -> TicketAIAssistCreate:
+        # 构建坐席辅助卡片：推荐回复、知识引用、下一步动作、风险与路由策略。
         refs = AgentAssistService.knowledge_refs_for(category)
         reply = AgentAssistService.recommended_reply_for(category, risk_level)
         return TicketAIAssistCreate(
@@ -158,6 +165,7 @@ class AgentAssistService:
 
     @staticmethod
     def knowledge_refs_for(category: str) -> list[dict[str, Any]]:
+        # 按工单类别返回可解释知识来源，模拟 RAG evidence refs。
         refs = {
             "refund": [{"title": "Refund policy", "source": "policy_rag", "section": "after_sales.refund"}],
             "complaint": [{"title": "Complaint escalation SOP", "source": "support_playbook", "section": "risk"}],
@@ -168,6 +176,7 @@ class AgentAssistService:
 
     @staticmethod
     def recommended_reply_for(category: str, risk_level: str) -> str:
+        # 生成客服建议话术，高风险场景避免自动承诺赔付或法律结论。
         if risk_level == "high":
             return "我先为你记录问题并转交人工客服继续处理，避免智能客服在高风险场景中过度承诺。"
         if category == "refund":
@@ -178,6 +187,7 @@ class AgentAssistService:
 
     @staticmethod
     def next_action_for(category: str, risk_level: str) -> str:
+        # 根据类别和风险给坐席一个下一步处理动作。
         if risk_level == "high":
             return "Assign to senior support and avoid monetary or legal commitments."
         if category == "refund":
@@ -188,6 +198,7 @@ class AgentAssistService:
 
     @staticmethod
     def intent_for_category(category: str) -> str:
+        # 将客服类别映射成 AI Assist 的业务意图字段。
         return {
             "refund": "refund_request",
             "complaint": "complaint_escalation",
@@ -204,6 +215,7 @@ class SupportTicketService:
         payload: SupportTicketCreate,
         actor_id: int,
     ) -> SupportTicket:
+        # 手动创建工单入口：生成 ticket_id、SLA、初始事件和可选 AI Assist。
         customer_id = payload.customer_id or actor_id
         ticket = SupportTicket(
             ticket_id=SupportTicketService.new_ticket_id(),
@@ -249,6 +261,7 @@ class SupportTicketService:
         request: HandoffEvaluationRequest,
         evaluation: dict[str, Any],
     ) -> tuple[SupportTicket, TicketAIAssist]:
+        # 从 Chat 转人工结果自动创建升级工单，并同步生成 AI Assist 建议。
         summary = SupportTicketService.summary_for_handoff(request.message, evaluation["reasons"])
         ticket = await SupportTicketService.create_ticket(
             db,
@@ -297,6 +310,7 @@ class SupportTicketService:
         payload: SupportTicketUpdate,
         actor_id: int,
     ) -> SupportTicket:
+        # 更新工单状态和字段，同时写入状态流转/更新事件。
         before_status = ticket.status
         data = payload.model_dump(exclude_unset=True)
         metadata_value = data.pop("metadata", None)
@@ -333,6 +347,7 @@ class SupportTicketService:
         risk_level: str | None = None,
         limit: int = 50,
     ) -> list[SupportTicket]:
+        # 按客户、状态和风险过滤工单，支撑客服控制台列表。
         query = select(SupportTicket).order_by(SupportTicket.created_at.desc()).limit(limit)
         if customer_id:
             query = query.where(SupportTicket.customer_id == customer_id)
@@ -345,11 +360,13 @@ class SupportTicketService:
 
     @staticmethod
     async def get_ticket(db: AsyncSession, ticket_pk: int) -> SupportTicket | None:
+        # 通过内部主键读取单个工单。
         result = await db.execute(select(SupportTicket).where(SupportTicket.id == ticket_pk))
         return result.scalar_one_or_none()
 
     @staticmethod
     async def list_events(db: AsyncSession, ticket_pk: int) -> list[TicketEvent]:
+        # 返回工单操作日志，支持审计和客服交接。
         result = await db.execute(
             select(TicketEvent).where(TicketEvent.ticket_id == ticket_pk).order_by(TicketEvent.created_at.desc())
         )
@@ -361,6 +378,7 @@ class SupportTicketService:
         ticket_pk: int,
         payload: TicketAIAssistCreate,
     ) -> TicketAIAssist:
+        # 写入 AI 坐席辅助结果，并追加 ai_assist_generated 事件。
         assist = TicketAIAssist(ticket_id=ticket_pk, **payload.model_dump())
         db.add(assist)
         await db.flush()
@@ -377,6 +395,7 @@ class SupportTicketService:
 
     @staticmethod
     async def generate_ai_assist_for_ticket(db: AsyncSession, ticket: SupportTicket) -> TicketAIAssist:
+        # 根据现有工单重新生成 AI Assist，用于客服手动刷新建议。
         order_snapshot = await SupportTicketService.order_snapshot(db, ticket.order_id)
         confidence = float((ticket.details or {}).get("confidence") or 0.82)
         intent = str((ticket.details or {}).get("intent") or AgentAssistService.intent_for_category(ticket.category))
@@ -401,6 +420,7 @@ class SupportTicketService:
 
     @staticmethod
     async def latest_ai_assist(db: AsyncSession, conversation_id: str) -> TicketAIAssist | None:
+        # 按 conversation_id 获取最近一次 AI Assist，供 Chat/客服侧复用。
         result = await db.execute(
             select(TicketAIAssist)
             .where(TicketAIAssist.conversation_id == conversation_id)
@@ -421,6 +441,7 @@ class SupportTicketService:
         details: dict[str, Any] | None = None,
         commit: bool = False,
     ) -> TicketEvent:
+        # 统一写入工单事件日志，可选择立即提交或跟随外层事务提交。
         event = TicketEvent(
             ticket_id=ticket_pk,
             actor_id=actor_id,
@@ -437,6 +458,7 @@ class SupportTicketService:
 
     @staticmethod
     async def order_snapshot(db: AsyncSession, order_id: int | None) -> dict[str, Any]:
+        # 为 AI Assist 提供轻量订单快照，避免直接暴露完整订单对象。
         if not order_id:
             return {}
         result = await db.execute(select(Order).where(Order.id == order_id))
@@ -447,6 +469,7 @@ class SupportTicketService:
 
     @staticmethod
     def serialize_ticket(ticket: SupportTicket) -> dict[str, Any]:
+        # 工单序列化出口，保证 API 和 Chat handoff 返回字段一致。
         return {
             "id": ticket.id,
             "ticket_id": ticket.ticket_id,
@@ -471,10 +494,12 @@ class SupportTicketService:
 
     @staticmethod
     def new_ticket_id() -> str:
+        # 生成客服可读 ticket id，包含日期和短随机后缀。
         return f"TCK-{datetime.now(timezone.utc).strftime('%Y%m%d')}-{uuid.uuid4().hex[:8].upper()}"
 
     @staticmethod
     def sla_deadline(priority: str, risk_level: str) -> datetime:
+        # 根据优先级和风险等级计算 SLA 截止时间。
         hours = 24
         if priority == "urgent" or risk_level == "high":
             hours = 2
@@ -486,5 +511,6 @@ class SupportTicketService:
 
     @staticmethod
     def summary_for_handoff(message: str, reasons: list[str]) -> str:
+        # 转人工工单摘要，保留触发原因和用户原始问题片段。
         reason_text = ", ".join(reasons) if reasons else "manual_review"
         return f"Human handoff required ({reason_text}): {message[:220]}"

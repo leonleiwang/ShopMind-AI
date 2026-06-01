@@ -1,5 +1,6 @@
 'use client';
 
+// 客服联络中心页面：展示工单队列、SLA、风险等级、事件日志和 AI 坐席辅助。
 import RoleGuard from '@/components/auth/RoleGuard';
 import RoleNav from '@/components/auth/RoleNav';
 import { api } from '@/services/api';
@@ -53,6 +54,7 @@ const statuses: Array<TicketStatus | 'all'> = ['all', 'open', 'pending', 'escala
 const riskLevels = ['all', 'low', 'medium', 'high'];
 
 export default function SupportConversationsPage() {
+  // 客服控制台允许 support 和 admin 访问。
   return (
     <RoleGuard allowed={['support', 'admin']}>
       <SupportContactCenter />
@@ -61,6 +63,7 @@ export default function SupportConversationsPage() {
 }
 
 function SupportContactCenter() {
+  // 管理工单列表、筛选器、选中工单、事件时间线和 AI Assist 状态。
   const [tickets, setTickets] = useState<SupportTicket[]>([]);
   const [events, setEvents] = useState<TicketEvent[]>([]);
   const [assist, setAssist] = useState<AgentAssist | null>(null);
@@ -95,6 +98,7 @@ function SupportContactCenter() {
   }, [tickets]);
 
   const loadTickets = async () => {
+    // 加载客服工单列表，并自动选择当前工单。
     setIsLoading(true);
     try {
       const response = await api.get('/support/tickets', { params: { limit: 80 } });
@@ -165,6 +169,7 @@ function SupportContactCenter() {
   }, [selectedId, tickets]);
 
   const updateStatus = async (status: TicketStatus) => {
+    // 更新工单状态，resolved 时自动补默认 resolution。
     if (!selectedTicket) return;
     try {
       const payload = status === 'resolved' ? { status, resolution: selectedTicket.resolution || 'Resolved by support.' } : { status };
@@ -177,6 +182,7 @@ function SupportContactCenter() {
   };
 
   const generateAssist = async () => {
+    // 为当前工单生成 AI Assist，并刷新事件时间线。
     if (!selectedTicket) return;
     setIsGeneratingAssist(true);
     try {
@@ -384,6 +390,7 @@ function SupportContactCenter() {
 }
 
 function Select({ label, value, values, onChange }: { label: string; value: string; values: string[]; onChange: (value: string) => void }) {
+  // 筛选下拉控件。
   return (
     <label className="text-xs font-medium text-slate-500">
       {label}
@@ -403,6 +410,7 @@ function Select({ label, value, values, onChange }: { label: string; value: stri
 }
 
 function MetricCard({ label, value, caption }: { label: string; value: number; caption: string }) {
+  // 客服指标卡片。
   return (
     <article className="rounded-lg border border-slate-200 bg-white p-5">
       <p className="text-xs uppercase tracking-[0.18em] text-slate-500">{label}</p>
@@ -413,11 +421,13 @@ function MetricCard({ label, value, caption }: { label: string; value: number; c
 }
 
 function StatusBadge({ status }: { status: TicketStatus }) {
+  // 工单状态徽标。
   const tone = status === 'resolved' ? 'emerald' : status === 'escalated' ? 'amber' : status === 'pending' ? 'cyan' : 'slate';
   return <ToneBadge label={status} tone={tone} />;
 }
 
 function ToneBadge({ label, tone }: { label: string; tone: 'slate' | 'cyan' | 'amber' | 'emerald' }) {
+  // 通用色彩徽标。
   const classes = {
     slate: 'bg-slate-100 text-slate-700',
     cyan: 'bg-[#e8f6fa] text-[#12445f]',
@@ -428,6 +438,7 @@ function ToneBadge({ label, tone }: { label: string; tone: 'slate' | 'cyan' | 'a
 }
 
 function InfoCell({ label, value }: { label: string; value: string }) {
+  // 工单详情信息块。
   return (
     <div className="rounded-lg border border-slate-200 bg-[#fbfcfe] p-4">
       <p className="text-xs uppercase tracking-[0.18em] text-slate-500">{label}</p>
@@ -437,6 +448,7 @@ function InfoCell({ label, value }: { label: string; value: string }) {
 }
 
 function ActionButton({ children, primary, onClick }: { children: React.ReactNode; primary?: boolean; onClick: () => void }) {
+  // 工单状态操作按钮。
   return (
     <button
       className={
@@ -452,6 +464,7 @@ function ActionButton({ children, primary, onClick }: { children: React.ReactNod
 }
 
 function EventRow({ event }: { event: TicketEvent }) {
+  // 工单事件时间线行。
   return (
     <div className="rounded-lg border border-slate-200 bg-[#fbfcfe] p-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -468,6 +481,7 @@ function EventRow({ event }: { event: TicketEvent }) {
 }
 
 function EmptyBox({ title, body }: { title: string; body: string }) {
+  // 空状态提示。
   return (
     <div className="rounded-lg border border-dashed border-slate-300 bg-[#fbfcfe] p-4">
       <p className="text-sm font-medium text-slate-700">{title}</p>
@@ -477,23 +491,27 @@ function EmptyBox({ title, body }: { title: string; body: string }) {
 }
 
 function riskTone(risk: string) {
+  // 风险等级到徽标色彩的映射。
   if (risk === 'high') return 'amber';
   if (risk === 'medium') return 'cyan';
   return 'slate';
 }
 
 function priorityTone(priority: string) {
+  // 优先级到徽标色彩的映射。
   if (priority === 'urgent' || priority === 'high') return 'amber';
   if (priority === 'normal') return 'cyan';
   return 'slate';
 }
 
 function isOverdue(value?: string | null, status?: string) {
+  // SLA 是否逾期，resolved 工单不再计入逾期。
   if (!value || status === 'resolved') return false;
   return new Date(value).getTime() < Date.now();
 }
 
 function slaRemaining(value?: string | null, status?: string) {
+  // SLA 剩余/逾期时间格式化。
   if (!value) return 'No SLA';
   if (status === 'resolved') return 'Closed';
   const delta = new Date(value).getTime() - Date.now();
@@ -505,6 +523,7 @@ function slaRemaining(value?: string | null, status?: string) {
 }
 
 function riskExplanation(riskLevel: string, routingStrategy: string) {
+  // 用简短说明解释 AI Assist 的风险和路由策略。
   if (riskLevel === 'high') return 'High risk: keep human ownership and avoid refund/legal commitments.';
   if (routingStrategy === 'agent_workflow') return 'Complex after-sales case: combine order lookup, policy RAG, and support review.';
   if (routingStrategy === 'sql_cache') return 'Low-cost path: answer from database or cache before invoking an LLM.';
@@ -513,11 +532,13 @@ function riskExplanation(riskLevel: string, routingStrategy: string) {
 }
 
 function formatOrderSnapshot(snapshot: Record<string, unknown>) {
+  // 订单快照格式化，空快照用占位说明。
   if (!snapshot || Object.keys(snapshot).length === 0) return 'No linked order snapshot';
   return JSON.stringify(snapshot);
 }
 
 function formatDate(value?: string | null) {
+  // 日期显示统一走中文本地化。
   if (!value) return '暂无';
   return new Intl.DateTimeFormat('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }).format(new Date(value));
 }

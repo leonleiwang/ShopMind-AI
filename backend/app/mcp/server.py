@@ -5,6 +5,7 @@ This is a lightweight Model Context Protocol adapter for the project's tools:
 clients can discover available tools and invoke them through a stable JSON API.
 It shares the same tool implementations used by the chat Agent runtime.
 """
+# HTTP MCP 适配层：让外部客户端发现并调用 ShopMind 的搜索、购物车、下单和对比工具。
 
 from typing import Any
 
@@ -24,10 +25,12 @@ router = APIRouter()
 
 
 class ToolCallRequest(BaseModel):
+    # 工具调用入参，arguments 会原样传给具体工具 execute。
     arguments: dict[str, Any] = Field(default_factory=dict)
 
 
 def _tool_schemas() -> list[dict[str, Any]]:
+    # 暴露工具 JSON schema，供 MCP/Function Calling 客户端发现能力。
     tool_classes = [
         ProductSearchTool,
         ProductCompareTool,
@@ -48,6 +51,7 @@ def _tool_schemas() -> list[dict[str, Any]]:
 
 
 def _build_tool(tool_name: str, db: AsyncSession, user_id: int):
+    # 按工具名创建带当前 db/user 上下文的工具实例。
     factories = {
         "search_products": lambda: ProductSearchTool(db),
         "compare_products": lambda: ProductCompareTool(db),
@@ -64,6 +68,7 @@ def _build_tool(tool_name: str, db: AsyncSession, user_id: int):
 
 @router.get("/tools")
 async def list_tools():
+    # 工具发现接口。
     return {"protocol": "shopmind-mcp-http", "tools": _tool_schemas()}
 
 
@@ -74,6 +79,7 @@ async def call_tool(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    # 工具调用接口，复用 Chat Agent 的同一套工具实现。
     tool = _build_tool(tool_name, db, current_user.id)
     result = await tool.execute(**request.arguments)
     return {"tool": tool_name, "result": result}

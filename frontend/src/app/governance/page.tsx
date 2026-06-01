@@ -1,5 +1,6 @@
 'use client';
 
+// Governance 页面：展示高风险审批队列、AI 草稿审核、人工通过/拒绝和审计日志。
 import RoleGuard from '@/components/auth/RoleGuard';
 import RoleNav from '@/components/auth/RoleNav';
 import { api } from '@/services/api';
@@ -29,6 +30,7 @@ type AuditLog = {
 };
 
 export default function GovernancePage() {
+  // 风控治理页仅允许 admin 访问。
   return (
     <RoleGuard allowed={['admin']}>
       <GovernanceContent />
@@ -37,6 +39,7 @@ export default function GovernancePage() {
 }
 
 function GovernanceContent() {
+  // 管理审批列表、审计日志、登录态和审批操作状态。
   const [approvals, setApprovals] = useState<Approval[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [error, setError] = useState('');
@@ -60,6 +63,7 @@ function GovernanceContent() {
   const highRiskCount = useMemo(() => approvals.filter((item) => item.risk_level === 'high').length, [approvals]);
 
   const loadGovernance = useCallback(async () => {
+    // 加载治理后台审批队列和审计日志。
     try {
       const [approvalRes, auditRes] = await Promise.all([
         api.get('/approvals/', { params: { limit: 40, scope: 'governance' } }),
@@ -88,6 +92,7 @@ function GovernanceContent() {
   }, [loadGovernance, token]);
 
   const review = async (approvalId: number, decision: 'approve' | 'reject') => {
+    // 执行通过/拒绝操作，完成后刷新队列和审计信息。
     setBusyId(approvalId);
     try {
       await api.post(`/approvals/${approvalId}/${decision}`, { note: `governance_page_${decision}` });
@@ -205,6 +210,7 @@ function ApprovalCard({
   onApprove: () => void;
   onReject: () => void;
 }) {
+  // 单个审批卡片，展示风险、原因、payload/result，并提供通过/拒绝动作。
   const pending = approval.status === 'pending';
   return (
     <article className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
@@ -252,6 +258,7 @@ function ApprovalCard({
 }
 
 function Metric({ label, value, caption }: { label: string; value: string; caption: string }) {
+  // 风控指标卡片。
   return (
     <article className="rounded-lg border border-slate-200 bg-white p-5">
       <div className="text-xs uppercase tracking-[0.18em] text-slate-500">{label}</div>
@@ -262,6 +269,7 @@ function Metric({ label, value, caption }: { label: string; value: string; capti
 }
 
 function Panel({ title, eyebrow, children }: { title: string; eyebrow: string; children: ReactNode }) {
+  // Governance 通用区块容器。
   return (
     <section className="rounded-lg border border-slate-200 bg-white p-5">
       <p className="text-xs uppercase tracking-[0.2em] text-slate-500">{eyebrow}</p>
@@ -272,6 +280,7 @@ function Panel({ title, eyebrow, children }: { title: string; eyebrow: string; c
 }
 
 function StatusBadge({ status }: { status: string }) {
+  // 审批状态徽标。
   const color = status === 'pending' ? 'bg-amber-50 text-amber-800' : 'bg-emerald-50 text-emerald-700';
   const label: Record<string, string> = {
     pending: '待处理',
@@ -283,6 +292,7 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 function RiskBadge({ risk }: { risk: string }) {
+  // 风险等级徽标。
   const color = risk === 'high' ? 'bg-rose-50 text-rose-700' : risk === 'medium' ? 'bg-sky-50 text-sky-700' : 'bg-slate-100 text-slate-600';
   const label: Record<string, string> = {
     high: '高风险',
@@ -293,6 +303,7 @@ function RiskBadge({ risk }: { risk: string }) {
 }
 
 function Empty({ title, body }: { title: string; body: string }) {
+  // 空状态提示。
   return (
     <div className="rounded-lg border border-dashed border-slate-300 bg-[#fbfcfe] p-4">
       <p className="text-sm font-medium text-slate-700">{title}</p>

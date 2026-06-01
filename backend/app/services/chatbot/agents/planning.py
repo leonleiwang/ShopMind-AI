@@ -1,3 +1,4 @@
+# Planning Agent：把多步购物请求拆成可执行工具计划，优先使用确定性规划，LLM 作为补充。
 # backend/app/services/chatbot/agents/planning.py
 import json
 import re
@@ -9,9 +10,11 @@ from app.services.chatbot.prompts import prompt_manager
 
 class PlanningAgent:
     def __init__(self):
+        # 使用统一 LLM 网关，自动继承 timeout/retry/fallback 能力。
         self.llm = llm_gateway
 
     async def create_plan(self, user_message: str) -> list[dict]:
+        # 创建执行计划：确定性计划命中时直接返回，否则尝试 LLM 规划。
         deterministic_plan = self._create_deterministic_plan(user_message)
         if deterministic_plan:
             return deterministic_plan
@@ -31,6 +34,7 @@ class PlanningAgent:
 
     @staticmethod
     def _create_deterministic_plan(user_message: str) -> list[dict]:
+        # 稳定处理“搜索/解析商品/加购/结算/移除购物车”等组合意图。
         text = user_message.strip()
         request = ShoppingRequestParser.parse(text)
         plan: list[dict] = []
@@ -117,11 +121,13 @@ class PlanningAgent:
 
     @staticmethod
     def _needs_product_resolution(text: str) -> bool:
+        # 判断当前请求是否需要先解析具体商品再执行工具。
         request = ShoppingRequestParser.parse(text)
         return request.requires_product_resolution
 
 
 def self_contained_cart_checkout(text: str) -> bool:
+    # 判断用户是否在结算当前购物车，而不是要求解析新的商品。
     product_words = ["蓝牙耳机", "耳机", "手机", "平板", "电脑", "键盘", "鼠标", "显示器", "相机", "电视", "冰箱", "空调", "Pro", "Lite"]
     cart_words = ["购物车", "已选", "当前"]
     return any(word in text for word in cart_words) and not any(word in text for word in product_words)

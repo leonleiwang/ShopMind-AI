@@ -1,3 +1,4 @@
+# 用户服务：负责注册、密码校验、登录认证和角色归一化。
 """
 业务逻辑层
 """
@@ -13,6 +14,7 @@ from app.models.user import User
 class UserService:
     @staticmethod
     async def create_user(db: AsyncSession, email: str, password: str, full_name: str = "", role: str = "shopper") -> User:
+        # 创建用户前检查邮箱唯一性，并保存 bcrypt 哈希密码。
         # 检查邮箱是否已注册
         result = await db.execute(select(User).where(User.email == email))
         existing = result.scalar_one_or_none()
@@ -32,6 +34,7 @@ class UserService:
 
     @staticmethod
     async def authenticate_user(db: AsyncSession, email: str, password: str) -> User | None:
+        # 登录认证：校验邮箱、密码和账号启用状态。
         result = await db.execute(select(User).where(User.email == email))
         user = result.scalar_one_or_none()
         if not user or not verify_password(password, user.hashed_password):
@@ -42,6 +45,7 @@ class UserService:
 
     @staticmethod
     def normalize_role(role: str | None) -> str:
+        # 统一角色别名，未知角色回退为 shopper。
         normalized = (role or "shopper").strip().lower()
         aliases = {
             "operator": "merchant",

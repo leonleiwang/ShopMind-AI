@@ -1,3 +1,4 @@
+# 轻量业务知识检索器：在意图路由前提供可解释业务上下文，生产可替换为真实 RAG/FAQ 知识库。
 from __future__ import annotations
 
 
@@ -30,6 +31,7 @@ class BusinessKnowledgeRetriever:
     ]
 
     def retrieve(self, query: str, limit: int = 3) -> list[dict]:
+        # 基于关键词重叠召回业务域文档，并附带 schema_version 便于追踪口径。
         scored = []
         for doc in self.DOCUMENTS:
             score = sum(1 for keyword in doc["keywords"] if keyword in query)

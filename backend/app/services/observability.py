@@ -1,3 +1,4 @@
+# AgentOps 轻量观测服务：在进程内记录意图、工具、LLM、SSE 事件、延迟和最近事件流。
 from __future__ import annotations
 
 import time
@@ -21,6 +22,7 @@ class AgentObservability:
 
     @classmethod
     def record_intent(cls, intent: str, message: str) -> None:
+        # 记录意图路由结果和用户消息摘要，用于工程观测 Dashboard。
         with cls._lock:
             cls._intents[intent] += 1
             cls._recent.appendleft(
@@ -29,11 +31,13 @@ class AgentObservability:
 
     @classmethod
     def record_event(cls, event: str) -> None:
+        # 记录 SSE/系统事件计数，例如 intent、action、observation、final。
         with cls._lock:
             cls._events[event] += 1
 
     @classmethod
     def record_tool(cls, tool_name: str, latency_ms: float, ok: bool = True) -> None:
+        # 记录 MCP 工具调用次数、延迟和失败次数。
         with cls._lock:
             cls._tools[tool_name] += 1
             cls._latency_ms.append(latency_ms)
@@ -52,6 +56,7 @@ class AgentObservability:
     @classmethod
     def record_llm(cls, provider: str, latency_ms: float, ok: bool = True, degraded: bool = False) -> None:
         """[反思2a/2b-韧性降级] 记录 LLM 网关成功、失败和降级事件。"""
+        # LLM 网关统一上报成功、失败和 degraded fallback，便于观察模型链路稳定性。
         key = "ok" if ok else "error"
         if degraded:
             key = "degraded"
@@ -71,6 +76,7 @@ class AgentObservability:
 
     @classmethod
     def snapshot(cls) -> dict[str, Any]:
+        # 输出 Dashboard 可直接消费的观测快照。
         with cls._lock:
             latencies = list(cls._latency_ms)
             avg_latency = sum(latencies) / len(latencies) if latencies else 0

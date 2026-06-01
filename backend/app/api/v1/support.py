@@ -1,3 +1,4 @@
+# 客服联络中心 API：提供工单列表/详情/状态流转、转人工评估、AI Assist 生成和会话辅助查询。
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -20,10 +21,12 @@ router = APIRouter()
 
 
 def _is_support_user(user: User) -> bool:
+    # support/admin/superuser 拥有客服控制台权限。
     return user.role in {"support", "admin"} or bool(user.is_superuser)
 
 
 def _can_view_ticket(user: User, customer_id: int) -> bool:
+    # 客服可看全部工单，普通用户只能看自己的工单。
     return _is_support_user(user) or user.id == customer_id
 
 
@@ -35,6 +38,7 @@ async def list_tickets(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    # 工单列表接口，普通用户自动限制为自己的 customer_id。
     customer_id = None if _is_support_user(current_user) else current_user.id
     tickets = await SupportTicketService.list_tickets(
         db,
@@ -52,6 +56,7 @@ async def create_ticket(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    # 创建客服工单，非客服用户不能替其他客户创建。
     if payload.customer_id and payload.customer_id != current_user.id and not _is_support_user(current_user):
         raise HTTPException(status_code=403, detail="Only support users can create tickets for another customer")
     ticket = await SupportTicketService.create_ticket(db, payload, actor_id=current_user.id)
@@ -64,6 +69,7 @@ async def get_ticket(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    # 查询单个工单并做访问控制。
     ticket = await SupportTicketService.get_ticket(db, ticket_pk)
     if not ticket or not _can_view_ticket(current_user, ticket.customer_id):
         raise HTTPException(status_code=404, detail="Ticket not found")
@@ -77,6 +83,7 @@ async def update_ticket(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    # 客服侧更新工单状态、分配人、解决方案等字段。
     if not _is_support_user(current_user):
         raise HTTPException(status_code=403, detail="Only support users can update tickets")
     ticket = await SupportTicketService.get_ticket(db, ticket_pk)
@@ -92,6 +99,7 @@ async def list_ticket_events(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    # 查询工单事件时间线，用于审计和交接。
     ticket = await SupportTicketService.get_ticket(db, ticket_pk)
     if not ticket or not _can_view_ticket(current_user, ticket.customer_id):
         raise HTTPException(status_code=404, detail="Ticket not found")
@@ -104,6 +112,7 @@ async def evaluate_handoff(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    # 转人工评估接口，可按需自动创建升级工单和 AI Assist。
     evaluation = HumanHandoffService.evaluate(payload)
     ticket_payload = None
     if evaluation["should_handoff"] and payload.create_ticket:
@@ -125,6 +134,7 @@ async def create_ai_assist(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    # 手动写入 AI Assist 记录，供客服系统集成或测试使用。
     if not _is_support_user(current_user):
         raise HTTPException(status_code=403, detail="Only support users can create AI assist records")
     ticket = await SupportTicketService.get_ticket(db, ticket_pk)
@@ -143,6 +153,7 @@ async def generate_ai_assist(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    # 根据现有工单自动生成 AI Assist 建议。
     if not _is_support_user(current_user):
         raise HTTPException(status_code=403, detail="Only support users can generate AI assist records")
     ticket = await SupportTicketService.get_ticket(db, ticket_pk)
@@ -157,6 +168,7 @@ async def get_agent_assist(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    # 按会话 id 获取最近一次 AI Assist，方便客服接入聊天上下文。
     if not _is_support_user(current_user):
         raise HTTPException(status_code=403, detail="Only support users can view agent assist records")
     return await SupportTicketService.latest_ai_assist(db, conversation_id)

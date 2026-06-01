@@ -1,3 +1,4 @@
+# 购物车与订单业务服务：支撑商品加购、局部结算、订单创建、订单查询和状态更新。
 """
 业务逻辑层
 """
@@ -16,6 +17,7 @@ from app.models.product import Product
 class CartService:
     @staticmethod
     async def add_to_cart(db: AsyncSession, user_id: int, product_id: int, quantity: int = 1) -> CartItem:
+        # 加购入口：校验商品和数量，同商品累加数量，避免重复购物车行。
         if not product_id:
             raise ValueError("请提供有效的商品ID。")
         if quantity < 1:
@@ -41,6 +43,7 @@ class CartService:
 
     @staticmethod
     async def get_cart(db: AsyncSession, user_id: int) -> list[dict]:
+        # 返回用户完整购物车，并计算单行金额。
         result = await CartService._cart_rows(db, user_id)
         rows = result.all()
         return [
@@ -62,6 +65,7 @@ class CartService:
         product_ids: list[int] | None = None,
         keyword: str | None = None,
     ) -> list[dict]:
+        # 按商品 id 或关键词抽取购物车子集，支持“只结算相机”这类局部下单。
         result = await CartService._cart_rows(db, user_id, product_ids=product_ids, keyword=keyword)
         rows = result.all()
         return [
@@ -83,6 +87,7 @@ class CartService:
         product_ids: list[int] | None = None,
         keyword: str | None = None,
     ):
+        # 购物车基础查询，统一 join 商品表并复用过滤条件。
         query = (
             select(CartItem, Product)
             .join(Product, CartItem.product_id == Product.id)
@@ -96,11 +101,13 @@ class CartService:
 
     @staticmethod
     async def clear_cart(db: AsyncSession, user_id: int):
+        # 清空用户购物车。
         await db.execute(delete(CartItem).where(CartItem.user_id == user_id))
         await db.commit()
 
     @staticmethod
     async def remove_from_cart(db: AsyncSession, user_id: int, product_id: int | None = None, keyword: str | None = None) -> int:
+        # 支持按商品 id 或关键词移除购物车项，返回实际移除数量。
         query = select(CartItem).join(Product, CartItem.product_id == Product.id).where(CartItem.user_id == user_id)
         if product_id:
             query = query.where(CartItem.product_id == product_id)
@@ -122,6 +129,7 @@ class OrderService:
         product_ids: list[int] | None = None,
         keyword: str | None = None,
     ) -> Order:
+        # 创建订单并只清理本次结算范围内的购物车项，避免误结算其他商品。
         # 获取购物车内容
         result = await CartService._cart_rows(db, user_id, product_ids=product_ids, keyword=keyword)
         rows = result.all()
@@ -159,6 +167,7 @@ class OrderService:
 
     @staticmethod
     async def get_order(db: AsyncSession, order_id: int) -> Order | None:
+        # 读取订单详情并预加载订单项和商品信息。
         result = await db.execute(
             select(Order).options(selectinload(Order.items).selectinload(OrderItem.product)).where(Order.id == order_id)
         )
@@ -166,6 +175,7 @@ class OrderService:
 
     @staticmethod
     async def list_user_orders(db: AsyncSession, user_id: int) -> list[Order]:
+        # 按时间倒序列出用户订单，供购物者历史订单页使用。
         result = await db.execute(
             select(Order).options(selectinload(Order.items).selectinload(OrderItem.product)).where(Order.user_id == user_id)
             .order_by(Order.created_at.desc())
@@ -174,6 +184,7 @@ class OrderService:
 
     @staticmethod
     async def update_order_status(db: AsyncSession, order_id: int, status: str) -> Order | None:
+        # 更新订单状态，供运营后台和 WebSocket 状态同步使用。
         order = await OrderService.get_order(db, order_id)
         if not order:
             return None

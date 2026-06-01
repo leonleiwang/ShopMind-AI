@@ -1,3 +1,4 @@
+# 购物车工具集：把加购、查看、清空、移除购物车能力暴露给 Agent ToolCaller。
 """
 购物车工具
 """
@@ -11,6 +12,7 @@ from app.services.order_service import CartService
 
 
 class AddToCartTool:
+    # 加购工具：校验并写入当前用户购物车。
     name = "add_to_cart"
     description = "Add a product to the user's shopping cart"
     parameters = {
@@ -36,6 +38,7 @@ class AddToCartTool:
             return {"error": str(e)}
 
 class ViewCartTool:
+    # 查看购物车工具：返回当前用户购物车明细。
     name = "view_cart"
     description = "View the current user's shopping cart"
     parameters = {"type": "object", "properties": {}}
@@ -49,6 +52,7 @@ class ViewCartTool:
         return items
 
 class ClearCartTool:
+    # 清空购物车工具：移除当前用户全部购物车项。
     name = "clear_cart"
     description = "Clear all items from the user's shopping cart"
     parameters = {"type": "object", "properties": {}}
@@ -63,6 +67,7 @@ class ClearCartTool:
 
 
 class RemoveFromCartTool:
+    # 移除购物车工具：支持按商品 id 或关键词删除购物车项。
     name = "remove_from_cart"
     description = "Remove products from the user's shopping cart by product_id or keyword"
     parameters = {

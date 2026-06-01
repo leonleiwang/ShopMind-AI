@@ -1,5 +1,6 @@
 'use client';
 
+// 异常升级队列页面：聚合高风险、投诉/法务、紧急优先级和 SLA 逾期工单。
 import RoleGuard from '@/components/auth/RoleGuard';
 import RoleNav from '@/components/auth/RoleNav';
 import { api } from '@/services/api';
@@ -21,6 +22,7 @@ type EscalationTicket = {
 };
 
 export default function SupportEscalationsPage() {
+  // 升级队列仅允许 support/admin 查看。
   return (
     <RoleGuard allowed={['support', 'admin']}>
       <EscalationsContent />
@@ -29,10 +31,12 @@ export default function SupportEscalationsPage() {
 }
 
 function EscalationsContent() {
+  // 加载全部工单后在前端筛选出需要优先处理的升级事项。
   const [tickets, setTickets] = useState<EscalationTicket[]>([]);
   const [error, setError] = useState('');
 
   const loadTickets = async () => {
+    // 刷新客服工单列表。
     try {
       const response = await api.get('/support/tickets', { params: { limit: 100 } });
       setTickets(response.data);
@@ -143,6 +147,7 @@ function EscalationsContent() {
 }
 
 function Metric({ label, value, caption }: { label: string; value: number; caption: string }) {
+  // 升级队列指标卡片。
   return (
     <article className="rounded-lg border border-slate-200 bg-white p-5">
       <p className="text-xs uppercase tracking-[0.18em] text-slate-500">{label}</p>
@@ -153,6 +158,7 @@ function Metric({ label, value, caption }: { label: string; value: number; capti
 }
 
 function Badge({ label, warn }: { label: string; warn?: boolean }) {
+  // 状态/风险徽标。
   return (
     <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${warn ? 'bg-amber-50 text-amber-800' : 'bg-[#e8f6fa] text-[#12445f]'}`}>
       {label}
@@ -161,6 +167,7 @@ function Badge({ label, warn }: { label: string; warn?: boolean }) {
 }
 
 function EmptyBox({ title, body }: { title: string; body: string }) {
+  // 空状态提示。
   return (
     <div className="rounded-lg border border-dashed border-slate-300 bg-[#fbfcfe] p-4">
       <p className="text-sm font-medium text-slate-700">{title}</p>
@@ -170,11 +177,13 @@ function EmptyBox({ title, body }: { title: string; body: string }) {
 }
 
 function isOverdue(value?: string | null, status?: string) {
+  // SLA 是否逾期，resolved 工单不计入。
   if (!value || status === 'resolved') return false;
   return new Date(value).getTime() < Date.now();
 }
 
 function formatDate(value?: string | null) {
+  // 日期显示统一走中文本地化。
   if (!value) return '暂无';
   return new Intl.DateTimeFormat('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }).format(new Date(value));
 }

@@ -1,3 +1,4 @@
+// Chat 状态 Store：保存消息流、Agent 步骤、审批卡片、推荐商品和最近加购商品。
 // src/store/chat.ts 全局状态管理
 import { create } from 'zustand';
 

@@ -1,3 +1,4 @@
+// 认证状态 Store：集中管理 JWT、用户角色、登录态恢复和登出逻辑。
 // src/store/auth.ts 更新用户认证 Store
 import { create } from 'zustand';
 import { api } from '@/services/api';
@@ -52,6 +53,7 @@ export const useAuthStore = create<AuthState>((set) => ({
 }));
 
 function normalizeRole(role: string | undefined, isSuperuser?: boolean): UserRole {
+  // 后端 superuser 统一映射为 admin，其余未知角色回退 shopper。
   if (isSuperuser) return 'admin';
   if (role === 'merchant' || role === 'support' || role === 'admin') return role;
   return 'shopper';

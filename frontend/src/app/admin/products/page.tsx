@@ -1,5 +1,6 @@
 'use client';
 
+// 商家商品运营页：表格展示商品价格、库存、品类和 AI 运营内容状态。
 import RoleGuard from '@/components/auth/RoleGuard';
 import RoleNav from '@/components/auth/RoleNav';
 import { api } from '@/services/api';
@@ -9,6 +10,7 @@ import { useEffect, useState } from 'react';
 type Product = { id: number; name: string; price: number; category: string; stock: number; pricing_suggestion?: string; marketing_copy?: string };
 
 export default function AdminProductsPage() {
+  // 商品运营页允许 merchant/admin 访问。
   return (
     <RoleGuard allowed={['merchant', 'admin']}>
       <AdminProductsContent />
@@ -17,6 +19,7 @@ export default function AdminProductsPage() {
 }
 
 function AdminProductsContent() {
+  // 加载商家侧商品列表。
   const [products, setProducts] = useState<Product[]>([]);
 
   useEffect(() => {
@@ -62,6 +65,7 @@ function AdminProductsContent() {
 }
 
 function Header({ title, body }: { title: string; body: string }) {
+  // 页面头部。
   return (
     <header className="rounded-lg border border-slate-200 bg-white p-5">
       <Link className="text-sm font-semibold text-[#12445f]" href="/admin/dashboard">Admin</Link>

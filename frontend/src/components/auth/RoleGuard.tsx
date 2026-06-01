@@ -1,5 +1,6 @@
 'use client';
 
+// 角色路由守卫：校验登录态、加载当前用户，并阻止无权限访问页面。
 import { canAccess, roleHome, roleLabels } from '@/services/rbac';
 import { UserRole, useAuthStore } from '@/store/auth';
 import Link from 'next/link';
@@ -13,6 +14,7 @@ export default function RoleGuard({
   allowed?: UserRole[];
   children: ReactNode;
 }) {
+  // 先恢复 token，再拉取用户信息，最后按 allowed 和路由白名单双重校验。
   const token = useAuthStore((s) => s.token);
   const user = useAuthStore((s) => s.user);
   const hasHydrated = useAuthStore((s) => s.hasHydrated);
@@ -54,6 +56,7 @@ export default function RoleGuard({
 }
 
 function AccessDenied({ role }: { role: UserRole }) {
+  // 无权限时展示角色友好的返回入口。
   return (
     <main className="grid min-h-screen place-items-center bg-[#f4f7fb] px-5 text-slate-900">
       <section className="max-w-lg rounded-lg border border-slate-200 bg-white p-6 shadow-sm">

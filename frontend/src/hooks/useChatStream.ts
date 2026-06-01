@@ -1,9 +1,11 @@
+// SSE 对话 Hook：负责连接 Chat API、消费 Agent 事件流，并把步骤/结果写入 Zustand 状态。
 // src/hooks/useChatStream.ts SSE 连接 Hook
 import { SSE } from 'sse.js';
 import { ChatApproval, ChatProduct, useChatStore } from '@/store/chat';
 import { API_BASE_URL } from '@/services/api';
 
 function toDisplayText(value: unknown): string {
+  // 将 SSE payload 中的任意内容转换成可展示文本。
   if (typeof value === 'string') return value;
   if (value && typeof value === 'object' && 'text' in value) {
     const text = (value as { text?: unknown }).text;
@@ -17,10 +19,12 @@ function toDisplayText(value: unknown): string {
 }
 
 function parseEventData(event: MessageEvent<string>): Record<string, unknown> {
+  // 统一解析服务端 SSE data JSON。
   return JSON.parse(event.data) as Record<string, unknown>;
 }
 
 export function useChatStream() {
+  // 暴露 sendMessage，内部处理用户消息、assistant 占位、SSE 事件和错误降级。
   const addMessage = useChatStore((s) => s.addMessage);
   const updateLastAssistant = useChatStore((s) => s.updateLastAssistant);
   const appendStep = useChatStore((s) => s.appendStep);
@@ -29,6 +33,7 @@ export function useChatStream() {
   const lastAddedProduct = useChatStore((s) => s.lastAddedProduct);
 
   const sendMessage = (message: string, token: string) => {
+    // 发送消息并监听 intent/thought/action/observation/final 五类事件。
     setError('');
     setStreaming(true);
     addMessage({ role: 'user', content: message });

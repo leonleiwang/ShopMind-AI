@@ -1,5 +1,6 @@
 'use client';
 
+// 商家运营仪表盘：聚合商品数量、库存、品类、AI 草稿和运营入口。
 import RoleGuard from '@/components/auth/RoleGuard';
 import RoleNav from '@/components/auth/RoleNav';
 import { api } from '@/services/api';
@@ -24,6 +25,7 @@ const quickLinks = [
 ];
 
 export default function AdminDashboardPage() {
+  // 商家运营页允许 merchant/admin 访问。
   return (
     <RoleGuard allowed={['merchant', 'admin']}>
       <AdminDashboardContent />
@@ -32,6 +34,7 @@ export default function AdminDashboardPage() {
 }
 
 function AdminDashboardContent() {
+  // 加载商品运营数据并计算库存、品类和 AI 草稿指标。
   const [products, setProducts] = useState<Product[]>([]);
   const [error, setError] = useState('');
 
@@ -132,6 +135,7 @@ function AdminDashboardContent() {
 }
 
 function MetricCard({ label, value, caption }: { label: string; value: string; caption: string }) {
+  // 商家运营指标卡片。
   return (
     <article className="rounded-lg border border-slate-200 bg-white p-5">
       <p className="text-xs uppercase tracking-[0.18em] text-slate-500">{label}</p>
@@ -142,6 +146,7 @@ function MetricCard({ label, value, caption }: { label: string; value: string; c
 }
 
 function Panel({ title, eyebrow, children }: { title: string; eyebrow: string; children: ReactNode }) {
+  // 商家运营通用面板。
   return (
     <section className="rounded-lg border border-slate-200 bg-white p-5">
       <p className="text-xs uppercase tracking-[0.2em] text-slate-500">{eyebrow}</p>
@@ -152,6 +157,7 @@ function Panel({ title, eyebrow, children }: { title: string; eyebrow: string; c
 }
 
 function EmptyBox({ title, body }: { title: string; body: string }) {
+  // 空状态提示。
   return (
     <div className="rounded-lg border border-dashed border-slate-300 bg-[#fbfcfe] p-4">
       <p className="text-sm font-medium text-slate-700">{title}</p>

@@ -1,5 +1,6 @@
 'use client';
 
+// 商家订单运营页：展示订单状态和金额，供运营侧查看履约概况。
 import RoleGuard from '@/components/auth/RoleGuard';
 import RoleNav from '@/components/auth/RoleNav';
 import { api } from '@/services/api';
@@ -9,6 +10,7 @@ import { useEffect, useState } from 'react';
 type Order = { id: number; status: string; total_amount: number; created_at?: string };
 
 export default function AdminOrdersPage() {
+  // 订单运营页允许 merchant/admin 访问。
   return (
     <RoleGuard allowed={['merchant', 'admin']}>
       <AdminOrdersContent />
@@ -17,6 +19,7 @@ export default function AdminOrdersPage() {
 }
 
 function AdminOrdersContent() {
+  // 加载订单列表。
   const [orders, setOrders] = useState<Order[]>([]);
 
   useEffect(() => {

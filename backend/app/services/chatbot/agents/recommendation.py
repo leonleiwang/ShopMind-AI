@@ -1,3 +1,4 @@
+# Recommendation Agent：复用商品搜索工具生成推荐列表，并支持排除上一轮已推荐商品。
 """
 Recommendation Agent —— 简单推荐（基于销量/评分模拟）
 """
@@ -8,9 +9,11 @@ from app.services.chatbot.tools.caller import ToolCaller
 
 class RecommendationAgent:
     def __init__(self, tool_caller: ToolCaller):
+        # 推荐 Agent 通过 ToolCaller 间接访问商品搜索工具。
         self.tool_caller = tool_caller
 
     async def recommend(self, params: dict) -> dict:
+        # 搜索候选商品后按价格做简化推荐排序，并返回结构化 products + 文案。
         keyword = params.get("keyword", "")
         exclude_ids = {
             int(item)

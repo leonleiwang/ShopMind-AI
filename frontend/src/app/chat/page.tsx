@@ -21,6 +21,7 @@ const quickPrompts = [
 const categories = ['低延迟耳机', '手机数码', '电脑外设', '订单售后', '购物车', 'AI 推荐'];
 
 export default function ChatPage() {
+  // 购物者侧 Chat 入口，仅允许 shopper 角色访问。
   return (
     <RoleGuard allowed={['shopper']}>
       <ChatContent />
@@ -29,6 +30,7 @@ export default function ChatPage() {
 }
 
 function ChatContent() {
+  // 维护输入框、登录态、消息流和快捷 prompt，渲染完整购物对话体验。
   const [input, setInput] = useState('');
   const messages = useChatStore((s) => s.messages);
   const isStreaming = useChatStore((s) => s.isStreaming);
@@ -51,6 +53,7 @@ function ChatContent() {
   }, [hasHydrated, router, token]);
 
   const handleSend = (message = input) => {
+    // 统一发送入口，防止空消息、未登录或 streaming 中重复提交。
     if (!message.trim() || !token || isStreaming) return;
     sendMessage(message, token);
     setInput('');
@@ -201,6 +204,7 @@ function ChatContent() {
 }
 
 function EmptyState({ onPick, disabled }: { onPick: (prompt: string) => void; disabled: boolean }) {
+  // 首屏空状态，用示例任务引导用户进入搜索、推荐、加购和审批流程。
   return (
     <div className="grid min-h-full place-items-center">
       <div className="max-w-2xl text-center">

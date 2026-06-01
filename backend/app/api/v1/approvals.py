@@ -1,3 +1,4 @@
+# Governance 审批 API：提供审批列表、审计日志、详情、通过和拒绝操作。
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -18,6 +19,7 @@ async def list_approvals(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    # 查询审批列表，并按 governance/chat/all 分流展示。
     approvals = await ApprovalService.list_user_approvals(db, current_user.id, status=approval_status, limit=limit)
     if scope == "all":
         return approvals
@@ -42,6 +44,7 @@ async def list_audit_logs(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    # 查询当前用户审批审计日志。
     return await ApprovalService.list_audit_logs(db, current_user.id, limit=limit)
 
 
@@ -51,6 +54,7 @@ async def get_approval(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    # 查询单个审批请求并限制只能访问自己的审批。
     approval = await ApprovalService.get(db, approval_id)
     if not approval or approval.user_id != current_user.id:
         raise HTTPException(status_code=404, detail="Approval request not found")
@@ -64,6 +68,7 @@ async def approve_request(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    # 通过审批并执行对应业务动作，冲突状态返回 409。
     review = review or ApprovalReviewRequest()
     try:
         approval = await ApprovalService.approve(
@@ -87,6 +92,7 @@ async def reject_request(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    # 拒绝审批，不执行业务动作。
     review = review or ApprovalReviewRequest()
     try:
         approval = await ApprovalService.reject(db, approval_id, current_user.id, note=review.note)

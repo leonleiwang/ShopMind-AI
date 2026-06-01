@@ -1,3 +1,4 @@
+// Chat 消息气泡组件：展示用户/助手消息、Agent 中间步骤、商品卡片和 HITL 审批卡片。
 // 消息气泡组件
 'use client';
 
@@ -14,6 +15,7 @@ const stepTone: Record<string, string> = {
 };
 
 export default function ChatMessageBubble({ message }: { message: ChatMessage }) {
+  // 根据角色渲染左右气泡，并展示 streaming 中间步骤。
   const isUser = message.role === 'user';
   const isPendingAssistant = !isUser && !message.content && message.steps?.length;
 
@@ -59,6 +61,7 @@ export default function ChatMessageBubble({ message }: { message: ChatMessage })
 }
 
 function ProductCards({ products }: { products: ChatProduct[] }) {
+  // 推荐商品卡片：支持参数展开和一键加购，并记住最近加购商品供后续引用。
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [busyId, setBusyId] = useState<number | null>(null);
   const [notice, setNotice] = useState('');
@@ -66,6 +69,7 @@ function ProductCards({ products }: { products: ChatProduct[] }) {
   const setLastAddedProduct = useChatStore((s) => s.setLastAddedProduct);
 
   const addToCart = async (product: ChatProduct) => {
+    // 从聊天商品卡片直接加购，成功后写入 lastAddedProduct。
     if (!token || busyId) return;
     setBusyId(product.id);
     setNotice('');
@@ -137,6 +141,7 @@ function ProductCards({ products }: { products: ChatProduct[] }) {
 }
 
 function formatAttributes(attributes?: Record<string, unknown>) {
+  // 将商品 attributes 转成中文标签，避免原始 JSON 直接暴露给用户。
   if (!attributes) return [];
   const labelMap: Record<string, string> = {
     latency: '延迟',
@@ -158,12 +163,14 @@ function formatAttributes(attributes?: Record<string, unknown>) {
 }
 
 function formatAttributeValue(value: unknown) {
+  // 属性值格式化，兼容数组、布尔值和普通文本。
   if (Array.isArray(value)) return value.join(' / ');
   if (typeof value === 'boolean') return value ? '是' : '否';
   return String(value);
 }
 
 function ApprovalCard({ approval }: { approval: ChatApproval }) {
+  // HITL 审批卡片：Chat 级审批可直接通过/取消，治理级审批只提示后台处理。
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const token = useAuthStore((s) => s.token);
@@ -172,6 +179,7 @@ function ApprovalCard({ approval }: { approval: ChatApproval }) {
   const isChatApproval = approval.approval_channel === 'chat';
 
   const review = async (decision: 'approve' | 'reject') => {
+    // 调用审批 API，并把最终订单/拒绝结果回写到当前消息。
     if (!token || busy) return;
     setBusy(true);
     setError('');
@@ -236,6 +244,7 @@ function ApprovalCard({ approval }: { approval: ChatApproval }) {
 }
 
 function formatMessage(content: string) {
+  // 普通文本保留换行；商品行以轻量卡片样式突出显示。
   if (!content) return '';
 
   const lines = content.split('\n');

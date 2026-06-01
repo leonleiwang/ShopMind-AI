@@ -1,3 +1,4 @@
+# 订单工具集：把下单审批和订单查询能力暴露给 Agent，并确保下单先进入 HITL 审批。
 """
 订单工具
 """
@@ -12,6 +13,7 @@ from app.services.order_service import OrderService
 
 
 class PlaceOrderTool:
+    # 下单工具：不直接创建订单，而是生成可审批的 checkout request。
     name = "place_order"
     description = "Create an order from the current user's shopping cart"
     parameters = {
@@ -27,6 +29,7 @@ class PlaceOrderTool:
         self.user_id = user_id
 
     async def execute(self, **kwargs) -> Any:
+        # 生成订单审批并返回前端可渲染的审批卡片字段。
         try:
             product_id = kwargs.get("product_id")
             approval = await ApprovalService.create_order_approval(
@@ -51,6 +54,7 @@ class PlaceOrderTool:
             return {"error": str(e)}
 
 class CheckOrderTool:
+    # 订单查询工具：按订单 id 返回状态、金额和订单项。
     name = "check_order"
     description = "Check the status of an order by ID"
     parameters = {
@@ -65,6 +69,7 @@ class CheckOrderTool:
         self.db = db
 
     async def execute(self, **kwargs) -> Any:
+        # 查询订单详情，未找到时返回工具错误结果。
         order_id = kwargs.get("order_id")
         order = await OrderService.get_order(self.db, order_id)
         if not order:

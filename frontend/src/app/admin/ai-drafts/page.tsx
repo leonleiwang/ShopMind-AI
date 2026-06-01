@@ -1,5 +1,6 @@
 'use client';
 
+// AI 草稿页：展示商品描述、定价建议、营销文案等 AI 运营草稿审批记录。
 import RoleGuard from '@/components/auth/RoleGuard';
 import RoleNav from '@/components/auth/RoleNav';
 import { api } from '@/services/api';
@@ -9,6 +10,7 @@ import { useEffect, useState } from 'react';
 type Approval = { id: number; action_type: string; status: string; summary: string; created_at?: string };
 
 export default function AiDraftsPage() {
+  // AI 草稿页允许 merchant/admin 访问。
   return (
     <RoleGuard allowed={['merchant', 'admin']}>
       <AiDraftsContent />
@@ -17,6 +19,7 @@ export default function AiDraftsPage() {
 }
 
 function AiDraftsContent() {
+  // 加载 governance 队列中的非下单类审批，作为 AI 运营草稿列表。
   const [drafts, setDrafts] = useState<Approval[]>([]);
 
   useEffect(() => {

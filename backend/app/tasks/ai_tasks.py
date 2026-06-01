@@ -1,3 +1,4 @@
+# AI 运营任务：支持 Celery/本地 eager 两种模式，生成商品描述、定价建议、营销文案和推荐刷新。
 import asyncio
 import json
 from collections.abc import Awaitable
@@ -18,6 +19,7 @@ T = TypeVar("T")
 
 
 async def _run_with_engine_cleanup(awaitable: Awaitable[T]) -> T:
+    # Celery 同步任务运行 async 代码后释放连接池，避免跨事件循环复用连接。
     try:
         return await awaitable
     finally:
@@ -27,34 +29,40 @@ async def _run_with_engine_cleanup(awaitable: Awaitable[T]) -> T:
 
 
 def _run_async_task(awaitable: Awaitable[T]) -> T:
+    # 将 async 任务包装成 Celery 可调用的同步函数。
     return asyncio.run(_run_with_engine_cleanup(awaitable))
 
 
 @celery_app.task(bind=True, max_retries=3)
 def generate_product_description(self, product_id: int, user_id: int | None = None):
     """AI 生成商品描述（异步任务）。"""
+    # Celery 商品描述任务入口。
     return _run_async_task(_generate_product_description(product_id, user_id))
 
 
 @celery_app.task(bind=True, max_retries=3)
 def batch_update_recommendations(self, user_id: int):
     """批量刷新商品推荐（异步任务）。"""
+    # Celery 推荐刷新任务入口。
     return _run_async_task(_batch_update_recommendations(user_id))
 
 
 @celery_app.task(bind=True, max_retries=3)
 def generate_pricing_suggestion(self, product_id: int, user_id: int | None = None):
     """AI 动态定价建议（异步任务）。"""
+    # Celery 定价建议任务入口。
     return _run_async_task(_generate_pricing_suggestion(product_id, user_id))
 
 
 @celery_app.task(bind=True, max_retries=3)
 def generate_marketing_copy(self, product_id: int, user_id: int | None = None):
     """AI 个性化营销文案（异步任务）。"""
+    # Celery 营销文案任务入口。
     return _run_async_task(_generate_marketing_copy(product_id, user_id))
 
 
 async def _generate_product_description(product_id: int, user_id: int | None = None) -> dict:
+    # 生成商品描述；带 user_id 时进入 HITL 草稿审批，不直接发布。
     async with AsyncSessionLocal() as db:
         product = await db.get(Product, product_id)
         if not product:
@@ -104,6 +112,7 @@ async def _generate_product_description(product_id: int, user_id: int | None = N
 
 
 async def _batch_update_recommendations(user_id: int) -> dict:
+    # 基于用户历史订单品类和库存热度生成简化推荐列表。
     async with AsyncSessionLocal() as db:
         bought = await db.execute(
             select(Product.category)
@@ -137,6 +146,7 @@ async def _batch_update_recommendations(user_id: int) -> dict:
 
 
 async def _generate_pricing_suggestion(product_id: int, user_id: int | None = None) -> dict:
+    # 基于库存规则生成定价建议；带 user_id 时走审批草稿。
     async with AsyncSessionLocal() as db:
         product = await db.get(Product, product_id)
         if not product:
@@ -176,6 +186,7 @@ async def _generate_pricing_suggestion(product_id: int, user_id: int | None = No
 
 
 async def _generate_marketing_copy(product_id: int, user_id: int | None = None) -> dict:
+    # 生成营销文案；有模型时调用 LLM，无模型时使用确定性 fallback。
     async with AsyncSessionLocal() as db:
         product = await db.get(Product, product_id)
         if not product:

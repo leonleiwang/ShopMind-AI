@@ -1,5 +1,6 @@
 'use client';
 
+// V1.1.1 Agent Eval + Data Agent 控制台：展示离线评测、guardrail 分类、报告导出和自然语言数据查询。
 import RoleGuard from '@/components/auth/RoleGuard';
 import RoleNav from '@/components/auth/RoleNav';
 import { api } from '@/services/api';
@@ -120,6 +121,7 @@ const emptySummary: EvalSummary = {
   results: [],
 };
 
+// Data Agent 快捷样例，覆盖四类业务查询和两个受控安全/语义边界场景。
 const sampleQuestions = [
   '最近有哪些订单异常需要运营介入？',
   '客服工单 SLA 有没有超时？',
@@ -130,6 +132,7 @@ const sampleQuestions = [
 ];
 
 export default function AgentEvalPage() {
+  // 页面入口只开放给管理员角色，避免普通用户访问治理与评测数据。
   return (
     <RoleGuard allowed={['admin']}>
       <AgentEvalContent />
@@ -138,6 +141,7 @@ export default function AgentEvalPage() {
 }
 
 function AgentEvalContent() {
+  // 控制台主体状态：维护评测 summary、case 列表、单条结果、Data Agent 查询和加载错误。
   const [summary, setSummary] = useState<EvalSummary>(emptySummary);
   const [cases, setCases] = useState<EvalCase[]>([]);
   const [selectedCase, setSelectedCase] = useState('');
@@ -148,6 +152,7 @@ function AgentEvalContent() {
   const [loading, setLoading] = useState('');
   const [error, setError] = useState('');
 
+  // 将后端 failure taxonomy 转成前端可直接渲染的列表。
   const failures = useMemo(
     () =>
       Object.entries(summary.failure_counts).map(([key, value]) => ({
@@ -158,9 +163,11 @@ function AgentEvalContent() {
     [summary.failure_counts, summary.failure_labels],
   );
 
+  // 最近结果优先展示 guardrail probe 和各 suite 代表样例，避免只看到单一业务场景。
   const latestResults = useMemo(() => pickRepresentativeResults(summary.results, 10), [summary.results]);
 
   const load = async () => {
+    // 首屏加载最近一次评测摘要和完整 case 列表，失败时给出后端/权限排查提示。
     try {
       const [summaryRes, casesRes] = await Promise.all([
         api.get('/agent-eval/summary'),
@@ -176,6 +183,7 @@ function AgentEvalContent() {
   };
 
   useEffect(() => {
+    // 延迟到客户端挂载后再拉取数据，降低 Next.js hydration 差异风险。
     const initialLoad = window.setTimeout(() => {
       void load();
     }, 0);
@@ -183,6 +191,7 @@ function AgentEvalContent() {
   }, []);
 
   const runEval = async () => {
+    // 运行 50 条评测并刷新 summary、失败分类、最近结果和导出数据。
     setLoading('run');
     try {
       const response = await api.post('/agent-eval/run', { mode: evalMode });
@@ -197,6 +206,7 @@ function AgentEvalContent() {
   };
 
   const runSingleCase = async () => {
+    // 单条回归测试：用于快速验证某个 case 的工具选择、SQL 口径和答案校验。
     if (!selectedCase) return;
     setLoading('single');
     try {
@@ -211,6 +221,7 @@ function AgentEvalContent() {
   };
 
   const exportReport = (format: 'json' | 'csv') => {
+    // 前端直接导出当前 summary，方便面试或本地对比不同 prompt/model 策略。
     if (!summary.results.length) return;
     const timestamp = summary.run_id || 'agent-eval-report';
     const content =
@@ -227,6 +238,7 @@ function AgentEvalContent() {
   };
 
   const runDataQuery = async (nextQuestion = question) => {
+    // Data Agent 查询入口：提交自然语言问题并展示工具、SQL policy、答案和聚合行。
     setLoading('query');
     setQuestion(nextQuestion);
     try {
@@ -505,6 +517,7 @@ function AgentEvalContent() {
 }
 
 function MetricCard({ label, value, caption }: { label: string; value: string; caption: string }) {
+  // 顶部指标卡：用统一视觉展示业务通过率、guardrail 捕获率、覆盖量和延迟。
   return (
     <article className="rounded-lg border border-slate-200 bg-white p-5">
       <div className="text-xs uppercase tracking-[0.18em] text-slate-500">{label}</div>
@@ -515,6 +528,7 @@ function MetricCard({ label, value, caption }: { label: string; value: string; c
 }
 
 function Panel({ title, eyebrow, children, className = '' }: { title: string; eyebrow: string; children: ReactNode; className?: string }) {
+  // 控制台通用面板容器，保持 Agent Eval 各功能区的信息密度一致。
   return (
     <section className={`rounded-lg border border-slate-200 bg-white p-5 shadow-sm ${className}`}>
       <div className="mb-4">
@@ -527,6 +541,7 @@ function Panel({ title, eyebrow, children, className = '' }: { title: string; ey
 }
 
 function ResultRow({ result }: { result: EvalResult }) {
+  // 单条评测结果行：同时展示 expected/predicted tool、答案摘要、延迟和失败归因。
   return (
     <article className="grid gap-4 rounded-lg border border-slate-200 bg-[#fbfcfe] p-4 lg:grid-cols-[1fr_auto]">
       <div>
@@ -555,6 +570,7 @@ function ResultRow({ result }: { result: EvalResult }) {
 }
 
 function SafetyItem({ title, body }: { title: string; body: string }) {
+  // SQL 安全策略说明项，用于强调只读、PII 拦截、语义缺口和幻觉防护。
   return (
     <div className="rounded-lg border border-slate-200 bg-[#fbfcfe] p-4">
       <h3 className="text-sm font-semibold text-slate-800">{title}</h3>
@@ -564,6 +580,7 @@ function SafetyItem({ title, body }: { title: string; body: string }) {
 }
 
 function KeyValueRow({ label, value }: { label: string; value: string }) {
+  // Data Agent 查询结果的键值行，突出工具、延迟和 SQL policy。
   return (
     <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-200 bg-[#fbfcfe] px-3 py-2 text-sm">
       <span className="font-semibold text-slate-600">{label}</span>
@@ -573,6 +590,7 @@ function KeyValueRow({ label, value }: { label: string; value: string }) {
 }
 
 function EmptyBox({ title, body }: { title: string; body: string }) {
+  // 空状态提示，避免评测或查询尚未运行时出现视觉断层。
   return (
     <div className="rounded-lg border border-dashed border-slate-300 bg-[#fbfcfe] p-4">
       <p className="text-sm font-medium text-slate-700">{title}</p>
@@ -582,21 +600,25 @@ function EmptyBox({ title, body }: { title: string; body: string }) {
 }
 
 function formatPercent(value: number | null | undefined) {
+  // 百分比格式化时兜底 NaN/undefined，避免指标卡出现 NaN%。
   const safe = Number.isFinite(value) ? Number(value) : 0;
   return `${Math.round(safe * 100)}%`;
 }
 
 function percentWidth(value: number, total: number) {
+  // suite 进度条保留最小宽度，让低样本或零样本状态仍然可见。
   if (!total) return 0;
   return Math.max((value / total) * 100, 8);
 }
 
 function modeLabel(value: string) {
+  // 对外统一模式命名：baseline 是稳定评测，llm 仅表示真实模型接入预留。
   if (value === 'llm') return 'LLM Reserved';
   return 'Baseline Eval';
 }
 
 function formatRunTime(value: string) {
+  // 运行时间在前端按本地时区展示，同时兼容空值和不可解析字符串。
   if (!value) return 'not run yet';
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
@@ -604,6 +626,7 @@ function formatRunTime(value: string) {
 }
 
 function toCsv(results: EvalResult[]) {
+  // 将评测结果导出为 CSV，保留 case、工具、guardrail、失败分类、延迟和成本字段。
   const headers = [
     'case_id',
     'suite',
@@ -636,6 +659,7 @@ function toCsv(results: EvalResult[]) {
 }
 
 function pickRepresentativeResults(results: EvalResult[], limit: number) {
+  // 最近结果抽样：先放受控失败，再覆盖每个 suite，最后用剩余 case 补足展示数量。
   const picked: EvalResult[] = [];
   const used = new Set<string>();
   const add = (result: EvalResult | undefined) => {

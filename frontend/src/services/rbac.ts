@@ -1,3 +1,4 @@
+// 前端 RBAC 配置：定义角色首页、显示名称、可访问路由和路由守卫判断。
 import { UserRole } from '@/store/auth';
 
 export const roleHome: Record<UserRole, string> = {
@@ -22,6 +23,7 @@ export const roleRoutes: Record<UserRole, string[]> = {
 };
 
 export function canAccess(role: UserRole | undefined, path: string) {
+  // admin 可访问全部；其他角色按路由前缀白名单判断。
   if (!role) return false;
   if (role === 'admin') return true;
   return roleRoutes[role].some((route) => path === route || path.startsWith(`${route}/`));

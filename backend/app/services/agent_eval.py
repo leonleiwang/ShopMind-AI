@@ -1,3 +1,4 @@
+# V1.1.1 Agent Eval + Data Agent 核心服务：维护离线评测集、只读数据查询、安全拦截、指标汇总与最近一次运行缓存。
 from __future__ import annotations
 
 import time
@@ -24,6 +25,7 @@ EVAL_MODES = {
 EVAL_MODE_ALIASES = {"deterministic": "baseline", "baseline": "baseline", "llm": "llm"}
 
 
+# 统一失败分类标签，供评测报告、Dashboard 和单条回归结果复用。
 FAILURE_CATEGORIES = {
     "intent_recognition_failure": "意图识别失败",
     "rag_failure": "RAG 失败",
@@ -33,6 +35,7 @@ FAILURE_CATEGORIES = {
 }
 
 
+# Data Agent 当前采用可解释的只读 SQL 模板，优先保证安全、稳定和可回归。
 READONLY_SQL_TEMPLATES = {
     "order_exception": (
         "SELECT status, COUNT(*) AS order_count, SUM(total_amount) AS gmv "
@@ -54,6 +57,7 @@ READONLY_SQL_TEMPLATES = {
 }
 
 
+# 业务意图到工具名的映射，用于 expected tool 校验和 Dashboard 展示。
 TOOLS = {
     "order_exception": "data_agent.order_exception_query",
     "support_sla": "data_agent.support_sla_query",
@@ -64,6 +68,7 @@ TOOLS = {
 
 @dataclass(frozen=True)
 class EvalCase:
+    # 单条 golden-set 评测任务，包含用户问题、期望工具、SQL/API 和答案校验关键词。
     id: str
     suite: str
     user_question: str
@@ -74,11 +79,13 @@ class EvalCase:
     expected_failure_category: str | None = None
 
     def serialize(self) -> dict[str, Any]:
+        # 统一转成 API/前端可消费的结构化字典，避免手写字段遗漏。
         return asdict(self)
 
 
 @dataclass(frozen=True)
 class DataAgentPlan:
+    # 路由阶段的执行计划，显式记录意图、工具、SQL 和可能的 guardrail 失败原因。
     intent: str
     tool: str
     sql: str
@@ -90,6 +97,7 @@ class DataAgentPlan:
 class DataAgentRouter:
     """Deterministic routing layer for NL data queries and eval expected-tool checks."""
 
+    # 写入、结构变更和敏感导出关键词，用于在 SQL 生成前完成权限拦截。
     BLOCKED_SQL_TERMS = {
         "drop",
         "delete",
@@ -112,6 +120,7 @@ class DataAgentRouter:
 
     @classmethod
     def plan(cls, question: str) -> DataAgentPlan:
+        # 自然语言意图路由：先做安全/语义/幻觉拦截，再落到四类业务查询工具。
         text = question.strip()
         lowered = text.lower()
         if not text:
@@ -134,6 +143,7 @@ class DataAgentRouter:
 
     @staticmethod
     def _success(intent: str) -> DataAgentPlan:
+        # 成功路由时返回固定工具和 SQL 模板，便于离线评测稳定复现。
         return DataAgentPlan(
             intent=intent,
             tool=TOOLS[intent],
@@ -143,6 +153,7 @@ class DataAgentRouter:
 
     @staticmethod
     def _failure(category: str, reason: str) -> DataAgentPlan:
+        # 失败路由统一进入 guardrail 工具，并保留可解释的失败分类和拒答原因。
         return DataAgentPlan(
             intent="unknown",
             tool="data_agent.guardrail",
@@ -156,6 +167,7 @@ class DataAgentRouter:
 class DataAgentService:
     @classmethod
     async def answer(cls, question: str, db: AsyncSession | None = None) -> dict[str, Any]:
+        # Data Agent 对外主入口：完成路由、数据读取、答案生成和成本/延迟记录。
         started = time.perf_counter()
         plan = DataAgentRouter.plan(question)
         if plan.failure_category:
@@ -167,6 +179,7 @@ class DataAgentService:
 
     @classmethod
     async def _rows_for(cls, intent: str, db: AsyncSession | None) -> list[dict[str, Any]]:
+        # 支持真实数据库查询，也支持无数据库环境下的 fallback 数据，方便本地演示和 CI。
         if db is None:
             return cls._fallback_rows(intent)
         try:
@@ -184,6 +197,7 @@ class DataAgentService:
 
     @staticmethod
     async def _order_exception_rows(db: AsyncSession) -> list[dict[str, Any]]:
+        # 订单异常查询：聚合订单状态、GMV，并单独补充高金额订单风险计数。
         result = await db.execute(
             select(Order.status, func.count(Order.id), func.coalesce(func.sum(Order.total_amount), 0.0))
             .group_by(Order.status)
@@ -201,6 +215,7 @@ class DataAgentService:
 
     @staticmethod
     async def _support_sla_rows(db: AsyncSession) -> list[dict[str, Any]]:
+        # 客服 SLA 查询：聚合状态/优先级/风险等级，并补充逾期工单指标。
         result = await db.execute(
             select(SupportTicket.status, SupportTicket.priority, SupportTicket.risk_level, func.count(SupportTicket.id))
             .group_by(SupportTicket.status, SupportTicket.priority, SupportTicket.risk_level)
@@ -226,6 +241,7 @@ class DataAgentService:
 
     @staticmethod
     async def _product_performance_rows(db: AsyncSession) -> list[dict[str, Any]]:
+        # 商品表现查询：按品类聚合 SKU 数、均价和库存，用于货架运营分析。
         result = await db.execute(
             select(
                 Product.category,
@@ -249,6 +265,7 @@ class DataAgentService:
 
     @staticmethod
     async def _refund_risk_rows(db: AsyncSession) -> list[dict[str, Any]]:
+        # 退款风险查询：聚合 refund/chargeback 工单，突出高风险售后场景。
         result = await db.execute(
             select(SupportTicket.category, SupportTicket.risk_level, func.count(SupportTicket.id))
             .where(or_(SupportTicket.category == "refund", SupportTicket.category == "chargeback"))
@@ -263,6 +280,7 @@ class DataAgentService:
 
     @staticmethod
     def _fallback_rows(intent: str) -> list[dict[str, Any]]:
+        # 本地 fallback 聚合数据保证 demo 和单元测试不依赖外部数据库状态。
         return {
             "order_exception": [
                 {"status": "cancelled", "order_count": 7, "gmv": 4288.0},
@@ -287,6 +305,7 @@ class DataAgentService:
 
     @staticmethod
     def _compose_answer(intent: str, rows: list[dict[str, Any]]) -> str:
+        # 将聚合行转成可读业务摘要，保持答案校验口径稳定。
         if intent == "order_exception":
             total = sum(int(row.get("order_count", 0)) for row in rows)
             high_value = next((row.get("order_count", 0) for row in rows if row.get("status") == "high_value"), 0)
@@ -313,6 +332,7 @@ class DataAgentService:
         *,
         ok: bool,
     ) -> dict[str, Any]:
+        # 统一输出工具、SQL、安全策略、行数据、答案、延迟和 token 成本估算。
         latency_ms = round((time.perf_counter() - started) * 1000, 2)
         token_cost = round(max(len(answer) + sum(len(str(row)) for row in rows), 1) / 1000 * 0.002, 6)
         return {
@@ -333,6 +353,7 @@ class DataAgentService:
 
 
 class ReadOnlySQLValidator:
+    # SQL 安全校验器：当前只允许 SELECT，并阻断写入操作和原始 PII 字段。
     FORBIDDEN_TERMS = {
         "insert",
         "update",
@@ -349,6 +370,7 @@ class ReadOnlySQLValidator:
 
     @classmethod
     def describe(cls, sql: str) -> dict[str, Any]:
+        # 返回结构化安全说明，供前端 SQL Policy 与评测报告展示。
         if not sql:
             return {
                 "readonly": False,
@@ -370,6 +392,7 @@ class ReadOnlySQLValidator:
 class EvalCorpus:
     @staticmethod
     def cases() -> list[EvalCase]:
+        # 构造 50 条离线评测任务，覆盖 45 条业务任务和 5 条受控 guardrail probe。
         questions = {
             "order_exception": [
                 "最近有哪些订单异常需要运营介入？",
@@ -466,12 +489,14 @@ class EvalCorpus:
 
     @classmethod
     def get(cls, case_id: str) -> EvalCase | None:
+        # 单条回归测试入口，支持从 Dashboard 直接定位某个 case。
         return next((case for case in cls.cases() if case.id == case_id), None)
 
 
 class AgentEvalRunner:
     @classmethod
     async def run(cls, case_ids: list[str] | None = None, mode: str = "baseline") -> dict[str, Any]:
+        # 全量或子集评测入口；LLM mode 当前仅保留模式标识，执行仍复用 baseline 安全链路。
         cases = EvalCorpus.cases()
         if case_ids:
             wanted = set(case_ids)
@@ -481,6 +506,7 @@ class AgentEvalRunner:
 
     @classmethod
     async def run_case(cls, case: EvalCase) -> dict[str, Any]:
+        # 单 case 执行与断言：校验工具、SQL、API、答案关键词以及 guardrail 捕获情况。
         result = await DataAgentService.answer(case.user_question)
         checks = {
             "tool": result["tool"] == case.expected_tool,
@@ -507,6 +533,7 @@ class AgentEvalRunner:
 
     @staticmethod
     def summarize(results: list[dict[str, Any]], mode: str = "baseline") -> dict[str, Any]:
+        # 汇总离线评测指标：业务通过率、guardrail 捕获率、工具成功率、延迟和成本。
         eval_mode = EVAL_MODE_ALIASES.get(mode, "baseline")
         total = len(results)
         passed = sum(1 for result in results if result["passed"])
@@ -573,6 +600,7 @@ class AgentEvalRunner:
 
     @staticmethod
     def _classify_failure(result: dict[str, Any], checks: dict[str, bool]) -> str:
+        # 将失败归因到固定 taxonomy，便于 Dashboard 展示和面试讲解。
         if result.get("failure_category"):
             return str(result["failure_category"])
         if not checks["tool"]:
@@ -585,15 +613,18 @@ class AgentEvalRunner:
 
     @staticmethod
     def _normalize_sql(sql: str) -> str:
+        # SQL 比对前做轻量归一化，避免大小写、尾部分号和空白影响评测结果。
         return " ".join(sql.lower().strip().rstrip(";").split())
 
 
 class AgentEvalStore:
+    # 进程内最近一次评测结果缓存，用于无外部存储的本地 demo 和快速刷新。
     _lock = Lock()
     _latest: dict[str, Any] | None = None
 
     @classmethod
     def latest(cls) -> dict[str, Any]:
+        # 读取最近一次运行；首次访问时返回空 summary，避免前端空状态报错。
         with cls._lock:
             if cls._latest is None:
                 return AgentEvalRunner.summarize([])
@@ -601,6 +632,7 @@ class AgentEvalStore:
 
     @classmethod
     def save(cls, result: dict[str, Any]) -> dict[str, Any]:
+        # 保存最新评测报告，供 summary、导出和最近评测结果列表复用。
         with cls._lock:
             cls._latest = result
             return result

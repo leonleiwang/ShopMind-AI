@@ -1,5 +1,6 @@
 'use client';
 
+// 购物车页：展示当前用户购物车、合计金额，并引导回 Chat 完成下单确认。
 import RoleGuard from '@/components/auth/RoleGuard';
 import RoleNav from '@/components/auth/RoleNav';
 import { api } from '@/services/api';
@@ -15,6 +16,7 @@ type CartItem = {
 };
 
 export default function CartPage() {
+  // 购物车页仅允许 shopper 访问。
   return (
     <RoleGuard allowed={['shopper']}>
       <CartContent />
@@ -23,11 +25,13 @@ export default function CartPage() {
 }
 
 function CartContent() {
+  // 加载购物车明细并计算总金额。
   const [items, setItems] = useState<CartItem[]>([]);
   const [error, setError] = useState('');
   const total = useMemo(() => items.reduce((sum, item) => sum + item.quantity * item.unit_price, 0), [items]);
 
   const loadCart = useCallback(async () => {
+    // 从订单 API 拉取当前用户购物车。
     try {
       const response = await api.get('/orders/cart');
       setItems(response.data);
@@ -83,6 +87,7 @@ function CartContent() {
 }
 
 function Header({ title, subtitle }: { title: string; subtitle: string }) {
+  // 页面头部。
   return (
     <header className="rounded-lg border border-slate-200 bg-white p-5">
       <Link className="text-sm font-semibold text-[#12445f]" href="/">ShopMind AI</Link>
@@ -93,10 +98,12 @@ function Header({ title, subtitle }: { title: string; subtitle: string }) {
 }
 
 function Notice({ children }: { children: string }) {
+  // 错误提示条。
   return <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">{children}</div>;
 }
 
 function Empty({ title, body }: { title: string; body: string }) {
+  // 空购物车提示。
   return (
     <div className="rounded-lg border border-dashed border-slate-300 bg-[#fbfcfe] p-5">
       <p className="font-medium text-slate-700">{title}</p>

@@ -1,5 +1,6 @@
 'use client';
 
+// 历史订单页：展示购物者已确认订单和订单项明细。
 import RoleGuard from '@/components/auth/RoleGuard';
 import RoleNav from '@/components/auth/RoleNav';
 import { api } from '@/services/api';
@@ -15,6 +16,7 @@ type Order = {
 };
 
 export default function OrdersPage() {
+  // 历史订单页仅允许 shopper 访问。
   return (
     <RoleGuard allowed={['shopper']}>
       <OrdersContent />
@@ -23,6 +25,7 @@ export default function OrdersPage() {
 }
 
 function OrdersContent() {
+  // 加载当前用户订单列表。
   const [orders, setOrders] = useState<Order[]>([]);
 
   useEffect(() => {
@@ -73,6 +76,7 @@ function OrdersContent() {
 }
 
 function formatDate(value?: string) {
+  // 订单时间格式化。
   if (!value) return '暂无时间';
   return new Intl.DateTimeFormat('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }).format(new Date(value));
 }
